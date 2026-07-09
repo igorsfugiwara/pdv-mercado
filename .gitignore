@@ -1,0 +1,18 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.local
+.DS_Store
+
+# Runtime data (userData) — nunca versionar dados operacionais/fiscais
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Certificados e segredos
+*.pfx
+*.p12
+.env
+.env.local

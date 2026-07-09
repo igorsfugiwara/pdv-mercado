@@ -1,0 +1,4 @@
+codigo_interno;ean;descricao;unidade;pesavel;preco_custo;preco_venda;estoque_atual;estoque_minimo;ncm;cest;cfop;origem;csosn;cst_pis;aliq_pis;cst_cofins;aliq_cofins
+1001;7891000100103;Arroz Branco 5kg;UN;0;18,00;27,90;40;10;10063021;;5102;0;102;49;0;49;0
+2001;;Banana Prata;KG;1;3,00;5,99;25,5;5;08030012;;5102;0;102;49;0;49;0
+3001;7894900011517;Refrigerante Cola 2L;UN;0;5,00;8,99;60;12;22021000;;5102;0;102;49;0;49;0

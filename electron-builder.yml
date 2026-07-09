@@ -1,0 +1,28 @@
+appId: com.casao.pdvmercado
+productName: PDV Mercado
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - electron/db/migrations/**
+asarUnpack:
+  # Módulos nativos precisam ficar fora do asar
+  - '**/node_modules/better-sqlite3/**'
+  - '**/node_modules/koffi/**'
+  - '**/node_modules/serialport/**'
+  - '**/node_modules/argon2/**'
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: true
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office

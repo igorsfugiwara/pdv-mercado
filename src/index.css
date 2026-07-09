@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+  }
+  /* Foco permanente no campo de captura (RF-01): esconde caret piscante intruso. */
+  input:focus,
+  button:focus {
+    outline: 2px solid theme('colors.primary');
+    outline-offset: 1px;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-text-inverse hover:bg-primary-dim;
+  }
+  .btn-ghost {
+    @apply btn bg-surface-alt text-text hover:bg-border;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white hover:opacity-90;
+  }
+  .card {
+    @apply rounded-lg border border-border bg-surface p-4 shadow-sm;
+  }
+  .input {
+    @apply w-full rounded-md border border-border bg-surface-alt px-3 py-2 text-text placeholder:text-text-muted focus:border-primary;
+  }
+  .kbd {
+    @apply rounded border border-border bg-surface-alt px-1.5 py-0.5 font-mono text-xs text-text-muted;
+  }
+}
