@@ -139,6 +139,10 @@ export class AcbrNfceProvider implements FiscalProvider {
   async retransmitir(doc: DocumentoFiscal): Promise<ResultadoEmissao> {
     this.assertPronto()
     // Reenvia o XML já assinado da contingência (tpEmis=9) p/ conciliação.
+    // GATE Fase 3: hoje `documentos_fiscais.xmlPath` nunca é gravado (nem em
+    // vendaService nem no catch de timeout), então este ramo é sempre pulado e
+    // o Enviar iria transmitir lote vazio → doc marcado 'rejeitada'. Ao integrar
+    // a lib, persistir o XML assinado da contingência na emissão e carregá-lo aqui.
     if (doc.xmlPath) {
       this.fn.LimparLista()
       const rc = this.fn.CarregarINI(doc.xmlPath)
@@ -221,6 +225,10 @@ export function valorIni(texto: string, chave: string): string | null {
  * cStat 100/150 = autorizada; demais = rejeitada (código+motivo).
  */
 export function parseRetornoEnvio(resp: string): ResultadoEmissao {
+  // GATE Fase 3: `valorIni` pega o PRIMEIRO cStat do retorno. Num lote INI da
+  // ACBr, o cStat do envelope (ex.: 104 "Lote processado") pode preceder o da
+  // nota (100). Validar o formato real e, se necessário, ler o cStat da seção
+  // da NF-e (protNFe) em vez do topo. Idem para nProt/chNFe.
   const cStat = valorIni(resp, 'cStat') ?? ''
   const xMotivo = valorIni(resp, 'xMotivo') ?? 'sem motivo'
   const chave = valorIni(resp, 'chNFe') ?? valorIni(resp, 'chave') ?? ''
@@ -238,6 +246,13 @@ export function parseRetornoEnvio(resp: string): ResultadoEmissao {
  * Monta o INI da NFC-e no formato aceito por `NFCE_CarregarINI` (pura/testável).
  * Subconjunto pragmático — os campos tributários completos (PIS/COFINS/CEST) e a
  * numeração dependem do cadastro fiscal e do contador (docs/FISCAL.md).
+ *
+ * GATE Fase 3 (validar com a lib/contador antes de produção):
+ *  - Descontos: `VendaFiscal` não carrega desconto de item/venda, então vProd sai
+ *    cheio e sem vDesc; com desconto, sum(vProd) > sum(vPag) → SEFAZ rejeita.
+ *    Threadar o desconto por item + vDesc, ou emitir vDesc no total.
+ *  - Pesáveis: vUnCom com 2 casas pode quebrar qCom*vUnCom=vProd (a NF-e admite
+ *    até ~10 casas em vUnCom). Usar precisão maior para itens fracionários.
  */
 export function montarIniNfce(venda: VendaFiscal, config: AcbrConfig): string {
   const L: string[] = []

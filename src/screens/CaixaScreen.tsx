@@ -134,7 +134,9 @@ export default function CaixaScreen() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [cart, caixa]) // eslint-disable-line react-hooks/exhaustive-deps
+    // `usuario` nas deps: após Ctrl+L (troca de operador) o handler precisa
+    // recapturar o operador atual, senão F7/F9 gravam sob o operador anterior.
+  }, [cart, caixa, usuario]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function pedirCpf() {
     const cpf = prompt('CPF na nota:')
@@ -213,6 +215,8 @@ export default function CaixaScreen() {
     const auth = await window.api.auth.autorizarSupervisor(pin)
     if (!auth.ok || !auth.usuario) { setMensagem('Autorização de supervisor negada.'); return }
     await window.api.caixa.movimentar(caixa.id, tipo, valor, motivo, usuario.id, auth.usuario.id)
+    // Abre a gaveta para a movimentação física do numerário (best-effort).
+    void window.api.hardware.abrirGaveta()
     setMensagem(`${tipo === 'sangria' ? 'Sangria' : 'Suprimento'} de ${formatBRL(valor)} registrado.`)
   }
 
