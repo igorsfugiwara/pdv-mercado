@@ -10,6 +10,7 @@ import {
   contadoresFiscais,
 } from '../schema'
 import type { Venda, DocumentoFiscal, FinalizarVendaInput } from '@shared/types'
+import { validarFinalizacao } from '../../services/vendaValidacao'
 
 const SERIE_PADRAO = 1
 
@@ -21,6 +22,7 @@ const SERIE_PADRAO = 1
  */
 export const vendasRepo = {
   finalizar(input: FinalizarVendaInput): { venda: Venda; documento: DocumentoFiscal | null } {
+    validarFinalizacao(input)
     const db = getDb()
     const agora = new Date().toISOString()
 
@@ -133,6 +135,12 @@ export const vendasRepo = {
     const db = getDb()
     const agora = new Date().toISOString()
     db.transaction((tx) => {
+      // Idempotência: só cancela venda ainda finalizada — evita estorno duplicado de estoque.
+      const [venda] = tx.select().from(vendas).where(eq(vendas.id, vendaId)).all()
+      if (!venda) throw new Error('Venda não encontrada.')
+      if (venda.status !== 'finalizada') {
+        throw new Error(`Venda #${vendaId} não pode ser cancelada (status: ${venda.status}).`)
+      }
       const itens = tx.select().from(vendaItens).where(eq(vendaItens.vendaId, vendaId)).all()
       // RF-16: estorno de estoque no cancelamento (transacional).
       for (const item of itens) {

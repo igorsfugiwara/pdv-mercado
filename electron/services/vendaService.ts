@@ -23,7 +23,7 @@ export async function finalizarVenda(input: FinalizarVendaInput): Promise<Result
 
   // 2) Emissão fiscal fora da transação.
   try {
-    const vendaFiscal = await montarVendaFiscal(input, venda.id)
+    const vendaFiscal = await montarVendaFiscal(input, venda.id, venda.total)
     const r = await getFiscalProvider().emitir(vendaFiscal)
 
     if (r.status === 'autorizada') {
@@ -56,13 +56,18 @@ export async function finalizarVenda(input: FinalizarVendaInput): Promise<Result
   return { venda, documentoFiscal: doc, troco }
 }
 
-async function montarVendaFiscal(input: FinalizarVendaInput, vendaId: number): Promise<VendaFiscal> {
+async function montarVendaFiscal(
+  input: FinalizarVendaInput,
+  vendaId: number,
+  total: number,
+): Promise<VendaFiscal> {
   const produtos = await produtosRepo.listar(true)
   const byId = new Map(produtos.map((p) => [p.id, p]))
   return {
     vendaId,
     clienteCpf: input.clienteCpf,
-    total: input.itens.reduce((a, i) => a + Math.round(i.precoUnitario * i.quantidade) - i.desconto, 0),
+    // Total fiscal = total efetivamente cobrado (já com desconto da venda), igual a venda.total.
+    total,
     pagamentos: input.pagamentos,
     itens: input.itens.map((i) => {
       const p = byId.get(i.produtoId)

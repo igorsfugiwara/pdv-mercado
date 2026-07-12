@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { formatBRL, parseBRL } from '../src/lib/money'
 import { validarCpf } from '../src/lib/cpf'
 import { parseEanBalanca } from '../electron/hardware/balanca'
+import { validarFinalizacao, totalVenda } from '../electron/services/vendaValidacao'
+import type { FinalizarVendaInput } from '../shared/types'
 
 describe('money (centavos)', () => {
   it('formata em BRL', () => {
@@ -37,5 +39,58 @@ describe('EAN de balança (RF-03)', () => {
   })
   it('ignora EAN sem prefixo 2', () => {
     expect(parseEanBalanca('7891000100103', 'peso')).toBeNull()
+  })
+})
+
+describe('validação de finalização de venda (Fase 1)', () => {
+  const base = (over: Partial<FinalizarVendaInput> = {}): FinalizarVendaInput => ({
+    caixaId: 1,
+    usuarioId: 1,
+    clienteCpf: null,
+    itens: [{ produtoId: 1, descricao: 'Arroz', quantidade: 2, peso: null, precoUnitario: 1000, desconto: 0 }],
+    descontoVenda: 0,
+    pagamentos: [{ forma: 'dinheiro', valor: 2000 }],
+    emitirNfce: true,
+    ...over,
+  })
+
+  it('total desconta o descontoVenda', () => {
+    expect(totalVenda(base({ descontoVenda: 300 }))).toBe(1700)
+  })
+
+  it('aceita venda válida', () => {
+    expect(() => validarFinalizacao(base())).not.toThrow()
+  })
+
+  it('rejeita carrinho vazio', () => {
+    expect(() => validarFinalizacao(base({ itens: [] }))).toThrow(/sem itens/i)
+  })
+
+  it('rejeita pagamento insuficiente', () => {
+    expect(() => validarFinalizacao(base({ pagamentos: [{ forma: 'dinheiro', valor: 1500 }] }))).toThrow(
+      /insuficiente/i,
+    )
+  })
+
+  it('rejeita total não-positivo (desconto >= subtotal)', () => {
+    expect(() => validarFinalizacao(base({ descontoVenda: 2000 }))).toThrow(/positivo/i)
+  })
+
+  it('aceita troco em dinheiro (paga mais que o total)', () => {
+    expect(() => validarFinalizacao(base({ pagamentos: [{ forma: 'dinheiro', valor: 5000 }] }))).not.toThrow()
+  })
+
+  it('rejeita excesso em pagamento eletrônico (sem troco em cartão)', () => {
+    expect(() => validarFinalizacao(base({ pagamentos: [{ forma: 'credito', valor: 5000 }] }))).toThrow(
+      /eletrônico|troco/i,
+    )
+  })
+
+  it('rejeita quantidade inválida', () => {
+    expect(() =>
+      validarFinalizacao(
+        base({ itens: [{ produtoId: 1, descricao: 'X', quantidade: 0, peso: null, precoUnitario: 1000, desconto: 0 }] }),
+      ),
+    ).toThrow(/quantidade/i)
   })
 })

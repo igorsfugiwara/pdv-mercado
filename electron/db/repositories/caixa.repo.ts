@@ -66,6 +66,9 @@ export const caixaRepo = {
     usuarioId: number,
     autorizadoPorId: number,
   ): MovimentoCaixa {
+    if (!Number.isInteger(valor) || valor <= 0) {
+      throw new Error('Valor de sangria/suprimento deve ser positivo.')
+    }
     const db = getDb()
     const [row] = db
       .insert(movimentosCaixa)
