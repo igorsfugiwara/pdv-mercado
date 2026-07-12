@@ -34,7 +34,8 @@ export const relatoriosRepo = {
     const porForma = await db
       .select({
         forma: vendaPagamentos.forma,
-        valor: sql<number>`coalesce(sum(${vendaPagamentos.valor}), 0)`,
+        // Líquido: desconta o troco (só existe em dinheiro) p/ bater com o faturamento.
+        valor: sql<number>`coalesce(sum(${vendaPagamentos.valor} - ${vendaPagamentos.troco}), 0)`,
         quantidade: sql<number>`count(*)`,
       })
       .from(vendaPagamentos)
@@ -116,8 +117,10 @@ export const relatoriosRepo = {
     let acumulado = 0
     return linhas.map((l) => {
       const percentual = totalGeral > 0 ? (l.faturamento / totalGeral) * 100 : 0
+      // Classe pelo acumulado ANTES deste item: garante que o 1º item (mesmo
+      // dominante, >80%) seja sempre A, e que o item que cruza a faixa entre nela.
+      const classe: ClasseAbc = acumulado < 80 ? 'A' : acumulado < 95 ? 'B' : 'C'
       acumulado += percentual
-      const classe: ClasseAbc = acumulado <= 80 ? 'A' : acumulado <= 95 ? 'B' : 'C'
       return { ...l, percentual, percentualAcumulado: acumulado, classe }
     })
   },
