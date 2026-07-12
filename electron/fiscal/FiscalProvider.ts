@@ -3,6 +3,7 @@ import type {
   ResultadoEmissao,
   ResultadoCancelamento,
   StatusSefaz,
+  DocumentoFiscal,
 } from '@shared/types'
 
 /**
@@ -11,6 +12,8 @@ import type {
  */
 export interface FiscalProvider {
   emitir(venda: VendaFiscal): Promise<ResultadoEmissao>
+  /** RF-27: retransmite um documento emitido em contingência (tpEmis=9) quando a SEFAZ volta. */
+  retransmitir(doc: DocumentoFiscal): Promise<ResultadoEmissao>
   cancelar(chave: string, justificativa: string): Promise<ResultadoCancelamento>
   inutilizar(serie: number, numIni: number, numFim: number, justificativa: string): Promise<void>
   statusServico(): Promise<StatusSefaz>

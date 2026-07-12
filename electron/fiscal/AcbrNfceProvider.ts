@@ -5,6 +5,7 @@ import type {
   ResultadoEmissao,
   ResultadoCancelamento,
   StatusSefaz,
+  DocumentoFiscal,
 } from '@shared/types'
 
 export interface AcbrConfig {
@@ -53,6 +54,11 @@ export class AcbrNfceProvider implements FiscalProvider {
   async emitir(_venda: VendaFiscal): Promise<ResultadoEmissao> {
     this.assertPronto()
     throw new NaoImplementadoError('emitir')
+  }
+
+  async retransmitir(_doc: DocumentoFiscal): Promise<ResultadoEmissao> {
+    this.assertPronto()
+    throw new NaoImplementadoError('retransmitir')
   }
 
   async cancelar(_chave: string, _justificativa: string): Promise<ResultadoCancelamento> {

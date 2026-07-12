@@ -67,7 +67,7 @@ npm run build:linux   # .AppImage + .deb (Ubuntu 22.04+)
 - **Fase 0 — Fundação:** ✅ scaffold Electron+React+SQLite, remoção do Firebase, esqueleto fiscal. Pendente: spike ACBrLib real (gate).
 - **Fase 1 — Núcleo de venda:** parcial — cadastro de produtos c/ campos fiscais, tela de caixa (bip/multiplicador/pesável/pagamento múltiplo/CPF), abertura/fechamento de caixa, auth argon2, auditoria, transação de venda + rascunho pós-queda.
 - **Fase 2 — Hardware:** interfaces + testes por dispositivo (implementação real dos protocolos pendente).
-- **Fase 3 — Fiscal:** `FiscalProvider` + `AcbrNfceProvider` (esqueleto) + fila de contingência + monitor. Emissão real depende da integração ACBrLib.
+- **Fase 3 — Fiscal:** `FiscalProvider` (com `retransmitir`) + `AcbrNfceProvider` (esqueleto) + fila de contingência **com retry real** (autoriza/rejeita/mantém) + monitor. Fluxo venda→emissão→contingência coberto por testes com provider fake (`tests/fiscal-fluxo.test.ts`); só a ligação ACBrLib nativa (koffi) fica pendente.
 - **Fase 4/5:** relatórios (esqueleto), backup automático ✅, empacotamento configurado.
 
 Ver `docs/FISCAL.md`, `docs/MANUAL_OPERADOR.md`, `docs/TESTES_HARDWARE.md`.

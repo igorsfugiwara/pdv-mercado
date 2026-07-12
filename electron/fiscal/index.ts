@@ -35,3 +35,12 @@ export function getContingenciaQueue(): ContingenciaQueue {
   if (!queue) throw new Error('Fila de contingência não inicializada.')
   return queue
 }
+
+/**
+ * Injeção de dependência para testes — permite exercitar o fluxo de venda/fila
+ * com um FiscalProvider fake, sem a ACBrLib. Não usar em produção.
+ */
+export function _setFiscalParaTestes(p: FiscalProvider | null, q?: ContingenciaQueue | null) {
+  provider = p
+  if (q !== undefined) queue = q
+}

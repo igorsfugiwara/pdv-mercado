@@ -48,14 +48,30 @@ export class ContingenciaQueue {
     try {
       const pendentes = await fiscalRepo.listar('contingencia_pendente')
       for (const doc of pendentes) {
-        // conciliação de protocolo: reenvia o XML já assinado da contingência.
         try {
           const status = await this.provider.statusServico()
-          if (!status.online) break // SEFAZ ainda offline — mantém na fila
-          // TODO Fase 3: chamar consulta/transmissão do XML de contingência via provider.
-          // Ao autorizar: fiscalRepo.atualizarStatus(doc.id, { status: 'autorizada', ... })
-          this.verificarPrazoAlerta(doc.emitidaEm)
-          processados++
+          if (!status.online) break // SEFAZ ainda offline — mantém a fila intacta
+
+          // Reenvia o XML já assinado da contingência (tpEmis=9) p/ conciliação de protocolo.
+          const r = await this.provider.retransmitir(doc)
+          if (r.status === 'autorizada') {
+            await fiscalRepo.atualizarStatus(doc.id, {
+              status: 'autorizada',
+              chaveAcesso: r.chave,
+              protocolo: r.protocolo,
+              autorizadaEm: new Date().toISOString(),
+            })
+            processados++
+          } else if (r.status === 'rejeitada') {
+            await fiscalRepo.atualizarStatus(doc.id, {
+              status: 'rejeitada',
+              motivoRejeicao: `${r.codigo}: ${r.motivo}`,
+            })
+            processados++
+          } else {
+            // Ainda em contingência: mantém pendente e checa o prazo de 24h.
+            this.verificarPrazoAlerta(doc.emitidaEm)
+          }
         } catch (e) {
           log.error('[contingencia] falha ao reprocessar doc', doc.id, e)
         }
