@@ -78,6 +78,7 @@ export interface PdvApi {
     cancelar(vendaId: number, usuarioId: number, autorizadoPorId: number): Promise<void>
     salvarEspera(input: FinalizarVendaInput): Promise<{ id: string }>
     recuperarEspera(): Promise<Array<{ id: string; input: FinalizarVendaInput }>>
+    removerEspera(id: string): Promise<void>
     salvarRascunho(input: FinalizarVendaInput | null): Promise<void>
     recuperarRascunho(): Promise<FinalizarVendaInput | null>
   }
@@ -147,6 +148,7 @@ export const IPC = {
     cancelar: 'vendas:cancelar',
     salvarEspera: 'vendas:salvarEspera',
     recuperarEspera: 'vendas:recuperarEspera',
+    removerEspera: 'vendas:removerEspera',
     salvarRascunho: 'vendas:salvarRascunho',
     recuperarRascunho: 'vendas:recuperarRascunho',
   },

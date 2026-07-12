@@ -144,6 +144,11 @@ export function registerIpc(dataDir: string) {
       .map((r) => ({ id: r.id, input: JSON.parse(r.payloadJson) }))
   })
 
+  ipcMain.handle(IPC.vendas.removerEspera, async (_e, id: string) => {
+    const db = getDb()
+    await db.delete(vendasEspera).where(eq(vendasEspera.id, id))
+  })
+
   // Invariante 4: rascunho persistido a cada item; recuperado na reabertura.
   ipcMain.handle(IPC.vendas.salvarRascunho, async (_e, input: FinalizarVendaInput | null) => {
     const db = getDb()

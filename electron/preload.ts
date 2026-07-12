@@ -37,6 +37,7 @@ const api: PdvApi = {
       invoke(IPC.vendas.cancelar, vendaId, usuarioId, autorizadoPorId),
     salvarEspera: (input) => invoke(IPC.vendas.salvarEspera, input),
     recuperarEspera: () => invoke(IPC.vendas.recuperarEspera),
+    removerEspera: (id) => invoke(IPC.vendas.removerEspera, id),
     salvarRascunho: (input) => invoke(IPC.vendas.salvarRascunho, input),
     recuperarRascunho: () => invoke(IPC.vendas.recuperarRascunho),
   },

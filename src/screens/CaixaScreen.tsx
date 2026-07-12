@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { Produto, PagamentoInput } from '@shared/types'
+import type { Produto, PagamentoInput, FinalizarVendaInput } from '@shared/types'
 import { useCaixaStore } from '../store/caixaStore'
 import { useAuthStore } from '../store/authStore'
 import { useCarrinhoStore, FORMAS_PAGAMENTO } from '../store/carrinhoStore'
@@ -18,10 +18,31 @@ export default function CaixaScreen() {
   const [busca, setBusca] = useState(false)
   const [pagamento, setPagamento] = useState(false)
   const [mensagem, setMensagem] = useState<string | null>(null)
+  const [esperaAberta, setEsperaAberta] = useState(false)
+  const [emEspera, setEmEspera] = useState<Array<{ id: string; input: FinalizarVendaInput }>>([])
+  const recuperado = useRef(false)
 
   useEffect(() => {
     void carregar()
   }, [carregar])
+
+  const carregarEspera = useCallback(async () => {
+    setEmEspera(await window.api.vendas.recuperarEspera())
+  }, [])
+
+  // Invariante 4: recupera o rascunho persistido após uma queda; carrega a fila de espera.
+  useEffect(() => {
+    if (recuperado.current) return
+    recuperado.current = true
+    void (async () => {
+      const rascunho = await window.api.vendas.recuperarRascunho()
+      if (rascunho && rascunho.itens.length > 0 && useCarrinhoStore.getState().itens.length === 0) {
+        cart.hidratar(rascunho)
+        setMensagem('Venda recuperada após reinício do sistema.')
+      }
+      await carregarEspera()
+    })()
+  }, [cart, carregarEspera])
 
   const focarCaptura = useCallback(() => {
     if (!busca && !pagamento) capturaRef.current?.focus()
@@ -100,20 +121,107 @@ export default function CaixaScreen() {
   // RF-10: operação 100% por teclado.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'F2') { e.preventDefault(); setBusca(true) }
+      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); trocarOperador() }
+      else if (e.key === 'F2') { e.preventDefault(); setBusca(true) }
+      else if (e.key === 'F3') { e.preventDefault(); definirMultiplicador() }
+      else if (e.key === 'F4') { e.preventDefault(); pedirDescontoVenda() }
+      else if (e.key === 'F6') { e.preventDefault(); cancelarUltimoItem() }
+      else if (e.key === 'F7') { e.preventDefault(); void colocarEmEspera() }
       else if (e.key === 'F8') { e.preventDefault(); pedirCpf() }
+      else if (e.key === 'F9') { e.preventDefault(); void sangriaSuprimento() }
       else if (e.key === 'F10') { e.preventDefault(); if (cart.itens.length) setPagamento(true) }
       else if (e.key === 'F12') { e.preventDefault(); if (confirm('Cancelar venda?')) cart.limpar() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [cart])
+  }, [cart, caixa]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function pedirCpf() {
     const cpf = prompt('CPF na nota:')
     if (!cpf) return
     if (validarCpf(cpf)) cart.setCpf(cpf.replace(/\D/g, ''))
     else setMensagem('CPF inválido.')
+  }
+
+  // RF-04: multiplicador de quantidade para o próximo item bipado.
+  function definirMultiplicador() {
+    const v = prompt('Quantidade (multiplicador do próximo item):', String(cart.multiplicador))
+    if (!v) return
+    const n = parseInt(v.replace(/\D/g, ''), 10)
+    if (n > 0) { cart.setMultiplicador(n); setMensagem(`Multiplicador: ${n}×`) }
+  }
+
+  function pedirDescontoVenda() {
+    const v = prompt('Desconto na venda (R$):')
+    if (v) cart.aplicarDescontoVenda(parseBRL(v))
+  }
+
+  // RF-06: cancela o último item lançado (com estorno automático do carrinho).
+  function cancelarUltimoItem() {
+    if (cart.itens.length === 0) return
+    const idx = cart.itens.length - 1
+    const it = cart.itens[idx]
+    cart.removerItem(idx)
+    setMensagem(`Item removido: ${it.descricao}`)
+  }
+
+  // RF-26/27: coloca a venda em espera para atender outra e retomar depois.
+  async function colocarEmEspera() {
+    if (!caixa || cart.itens.length === 0) return
+    await window.api.vendas.salvarEspera({
+      caixaId: caixa.id,
+      usuarioId: usuario.id,
+      clienteCpf: cart.clienteCpf,
+      itens: cart.itens,
+      descontoVenda: cart.descontoVenda,
+      pagamentos: [],
+      emitirNfce: true,
+    })
+    cart.limpar()
+    await carregarEspera()
+    setMensagem('Venda colocada em espera (F7).')
+  }
+
+  // RF-26: retoma uma venda em espera; se houver venda atual, ela é parqueada antes.
+  async function retomarEspera(item: { id: string; input: FinalizarVendaInput }) {
+    if (cart.itens.length > 0) await colocarEmEspera()
+    cart.hidratar(item.input)
+    await window.api.vendas.removerEspera(item.id)
+    await carregarEspera()
+    setEsperaAberta(false)
+    setMensagem('Venda retomada da espera.')
+  }
+
+  const totalEmEspera = (input: FinalizarVendaInput) =>
+    input.itens.reduce((a, i) => a + Math.round(i.precoUnitario * i.quantidade) - i.desconto, 0) -
+    input.descontoVenda
+
+  // RF-12: sangria/suprimento exige autorização de supervisor.
+  async function sangriaSuprimento() {
+    if (!caixa) return
+    const escolha = prompt('Movimentação de caixa — 1 = Sangria (retirada) · 2 = Suprimento (entrada):')
+    if (!escolha) return
+    const tipo = escolha.trim() === '2' ? 'suprimento' : escolha.trim() === '1' ? 'sangria' : null
+    if (!tipo) { setMensagem('Movimentação cancelada.'); return }
+    const valorRaw = prompt(`${tipo === 'sangria' ? 'Sangria' : 'Suprimento'} — valor (R$):`)
+    if (!valorRaw) return
+    const valor = parseBRL(valorRaw)
+    if (valor <= 0) { setMensagem('Valor inválido.'); return }
+    const motivo = prompt('Motivo:') ?? ''
+    const pin = prompt('PIN do supervisor para autorizar:')
+    if (!pin) return
+    const auth = await window.api.auth.autorizarSupervisor(pin)
+    if (!auth.ok || !auth.usuario) { setMensagem('Autorização de supervisor negada.'); return }
+    await window.api.caixa.movimentar(caixa.id, tipo, valor, motivo, usuario.id, auth.usuario.id)
+    setMensagem(`${tipo === 'sangria' ? 'Sangria' : 'Suprimento'} de ${formatBRL(valor)} registrado.`)
+  }
+
+  // Ctrl+L (RF-20): troca rápida de operador por PIN, sem sair do caixa.
+  async function trocarOperador() {
+    const pin = prompt('PIN do operador:')
+    if (!pin) return
+    const ok = await useAuthStore.getState().trocarOperador(pin)
+    setMensagem(ok ? 'Operador trocado.' : 'PIN inválido.')
   }
 
   if (!caixa) return <AberturaCaixa />
@@ -185,15 +293,14 @@ export default function CaixaScreen() {
             </div>
           </div>
           <div className="space-y-2">
-            <button
-              className="btn-ghost w-full"
-              onClick={() => {
-                const v = prompt('Desconto na venda (R$):')
-                if (v) cart.aplicarDescontoVenda(parseBRL(v))
-              }}
-            >
+            <button className="btn-ghost w-full" onClick={pedirDescontoVenda}>
               Desconto na venda (F4)
             </button>
+            {emEspera.length > 0 && (
+              <button className="btn-ghost w-full" onClick={() => setEsperaAberta(true)}>
+                Em espera ({emEspera.length})
+              </button>
+            )}
             <button
               className="btn-primary w-full py-4 text-lg"
               disabled={cart.itens.length === 0}
@@ -224,6 +331,40 @@ export default function CaixaScreen() {
           onConfirmar={finalizar}
           onFechar={() => setPagamento(false)}
         />
+      )}
+      {esperaAberta && (
+        <div
+          className="fixed inset-0 z-20 flex items-center justify-center bg-black/60"
+          onClick={() => setEsperaAberta(false)}
+        >
+          <div className="card w-[520px] space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-display text-2xl text-primary">Vendas em espera</h2>
+            {emEspera.length === 0 && (
+              <p className="py-6 text-center text-text-muted">Nenhuma venda em espera.</p>
+            )}
+            <ul className="max-h-80 space-y-2 overflow-auto">
+              {emEspera.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between rounded-md bg-surface-alt p-3"
+                >
+                  <span className="text-sm">
+                    {item.input.itens.length} {item.input.itens.length === 1 ? 'item' : 'itens'}
+                    <span className="ml-2 font-mono text-text-muted">
+                      {formatBRL(totalEmEspera(item.input))}
+                    </span>
+                  </span>
+                  <button className="btn-primary px-4 py-1" onClick={() => void retomarEspera(item)}>
+                    Retomar
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button className="btn-ghost w-full" onClick={() => setEsperaAberta(false)}>
+              Fechar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

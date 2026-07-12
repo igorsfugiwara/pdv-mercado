@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Produto, ItemCarrinho, FormaPagamento } from '@shared/types'
+import type { Produto, ItemCarrinho, FormaPagamento, FinalizarVendaInput } from '@shared/types'
 
 interface CarrinhoState {
   itens: ItemCarrinho[]
@@ -7,6 +7,7 @@ interface CarrinhoState {
   clienteCpf: string | null
   multiplicador: number // RF-04
   setMultiplicador: (n: number) => void
+  hidratar: (input: FinalizarVendaInput) => void
   adicionarProduto: (p: Produto, opts?: { quantidade?: number; peso?: number }) => void
   removerItem: (index: number) => void
   aplicarDescontoItem: (index: number, valor: number) => void
@@ -25,6 +26,17 @@ export const useCarrinhoStore = create<CarrinhoState>((set, get) => ({
   multiplicador: 1,
 
   setMultiplicador: (n) => set({ multiplicador: Math.max(1, n) }),
+
+  // Invariante 4 / RF-26: restaura um rascunho (pós-queda) ou venda em espera.
+  hidratar: (input) => {
+    set({
+      itens: input.itens,
+      descontoVenda: input.descontoVenda,
+      clienteCpf: input.clienteCpf,
+      multiplicador: 1,
+    })
+    void persistirRascunho(get)
+  },
 
   adicionarProduto: (p, opts) => {
     const quantidade = opts?.peso ?? opts?.quantidade ?? get().multiplicador
@@ -45,13 +57,21 @@ export const useCarrinhoStore = create<CarrinhoState>((set, get) => ({
     void persistirRascunho(get)
   },
 
-  aplicarDescontoItem: (index, valor) =>
+  aplicarDescontoItem: (index, valor) => {
     set((s) => ({
       itens: s.itens.map((it, i) => (i === index ? { ...it, desconto: valor } : it)),
-    })),
+    }))
+    void persistirRascunho(get)
+  },
 
-  aplicarDescontoVenda: (valor) => set({ descontoVenda: valor }),
-  setCpf: (cpf) => set({ clienteCpf: cpf }),
+  aplicarDescontoVenda: (valor) => {
+    set({ descontoVenda: valor })
+    void persistirRascunho(get)
+  },
+  setCpf: (cpf) => {
+    set({ clienteCpf: cpf })
+    void persistirRascunho(get)
+  },
 
   limpar: () => {
     set({ itens: [], descontoVenda: 0, clienteCpf: null, multiplicador: 1 })
