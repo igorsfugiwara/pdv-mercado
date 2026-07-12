@@ -2,9 +2,16 @@ import log from 'electron-log'
 import { vendasRepo } from '../db/repositories/vendas.repo'
 import { fiscalRepo } from '../db/repositories/fiscal.repo'
 import { produtosRepo } from '../db/repositories/produtos.repo'
+import { configRepo } from '../db/repositories/config.repo'
 import { getFiscalProvider } from '../fiscal'
-import { imprimirDanfe } from '../hardware/printer'
-import type { FinalizarVendaInput, ResultadoVenda, VendaFiscal } from '@shared/types'
+import { imprimirDanfe, pulsoGaveta } from '../hardware/printer'
+import type {
+  FinalizarVendaInput,
+  ResultadoVenda,
+  VendaFiscal,
+  Venda,
+  DanfeNfceDados,
+} from '@shared/types'
 
 /**
  * Orquestra a finalização (seção 7.3):
@@ -18,6 +25,11 @@ export async function finalizarVenda(input: FinalizarVendaInput): Promise<Result
   // Troco calculado sobre pagamentos em dinheiro.
   const totalPago = input.pagamentos.reduce((a, p) => a + p.valor, 0)
   const troco = Math.max(0, totalPago - venda.total)
+
+  // Abre a gaveta em vendas com dinheiro (best-effort — não bloqueia a venda).
+  if (input.pagamentos.some((p) => p.forma === 'dinheiro')) {
+    void pulsoGaveta().catch((e) => log.warn('[venda] gaveta indisponível', e))
+  }
 
   if (!documento) return { venda, documentoFiscal: null, troco }
 
@@ -33,13 +45,15 @@ export async function finalizarVenda(input: FinalizarVendaInput): Promise<Result
         protocolo: r.protocolo,
         autorizadaEm: new Date().toISOString(),
       })
-      await imprimirDanfe(r.xml, r.chave).catch((e) => log.error('[venda] falha DANFE', e))
+      const danfe = await montarDanfe(input, venda, troco, r.chave, r.protocolo, r.qrCode, false)
+      await imprimirDanfe(danfe).catch((e) => log.error('[venda] falha DANFE', e))
     } else if (r.status === 'contingencia') {
       await fiscalRepo.atualizarStatus(documento.id, {
         status: 'contingencia_pendente',
         chaveAcesso: r.chave,
       })
-      await imprimirDanfe(r.xml, r.chave).catch((e) => log.error('[venda] falha DANFE cont.', e))
+      const danfe = await montarDanfe(input, venda, troco, r.chave, null, r.qrCode, true)
+      await imprimirDanfe(danfe).catch((e) => log.error('[venda] falha DANFE cont.', e))
     } else {
       await fiscalRepo.atualizarStatus(documento.id, {
         status: 'rejeitada',
@@ -82,5 +96,36 @@ async function montarVendaFiscal(
         ean: p?.ean ?? null,
       }
     }),
+  }
+}
+
+async function montarDanfe(
+  input: FinalizarVendaInput,
+  venda: Venda,
+  troco: number,
+  chave: string,
+  protocolo: string | null,
+  qrCode: string,
+  contingencia: boolean,
+): Promise<DanfeNfceDados> {
+  return {
+    emitenteNome: (await configRepo.obter('emitente.nome')) ?? 'PDV MERCADO',
+    emitenteCnpj: (await configRepo.obter('emitente.cnpj')) ?? '',
+    itens: input.itens.map((i) => ({
+      descricao: i.descricao,
+      quantidade: i.quantidade,
+      valorUnitario: i.precoUnitario,
+      total: Math.round(i.precoUnitario * i.quantidade) - i.desconto,
+    })),
+    total: venda.total,
+    desconto: venda.desconto,
+    pagamentos: input.pagamentos,
+    troco,
+    chave,
+    protocolo,
+    qrCode,
+    emitidaEm: venda.criadoEm,
+    consumidorCpf: input.clienteCpf,
+    contingencia,
   }
 }

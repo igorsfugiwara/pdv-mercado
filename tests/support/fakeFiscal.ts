@@ -9,9 +9,10 @@ import type {
 
 const AUTORIZADA: ResultadoEmissao = {
   status: 'autorizada',
-  chave: 'NFCe35240100000000000165550010000000011000000010',
+  chave: '35240100000000000165550010000000011000000010',
   protocolo: '135240000000001',
   xml: '<nfeProc/>',
+  qrCode: 'https://www.nfce.fazenda.sp.gov.br/qrcode?p=fake',
 }
 
 /**

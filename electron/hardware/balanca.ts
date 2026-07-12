@@ -57,12 +57,43 @@ export async function lerPeso(): Promise<{ ok: boolean; peso?: number; erro?: st
   }
 }
 
-// Parse simplificado. TODO Fase 2: implementar frames reais por protocolo.
-function parsePeso(buf: Buffer, _protocolo: BalancaConfig['protocolo']): number | null {
-  const texto = buf.toString('ascii')
-  const m = texto.match(/(\d+[.,]\d{1,3})/)
-  if (!m) return null
-  return parseFloat(m[1].replace(',', '.'))
+/**
+ * Parse do frame de peso das balanças Toledo Prix (3/4/5) e Filizola (CS15).
+ *
+ * Ambas respondem em ASCII entre STX (0x02) e ETX (0x03), possivelmente com
+ * CR/LF e caracteres de status. O peso pode vir:
+ *  - com ponto/vírgula decimal explícito (ex.: "1.500" / "1,500" kg), ou
+ *  - como inteiro em gramas num campo fixo (ex.: "001500" = 1,500 kg) — comum
+ *    na Toledo, que o parser anterior (regex exigindo decimal) não lia.
+ *
+ * Peso instável (flag 'I'/'i' sem dígitos) ou zero/negativo → null (fallback manual).
+ * O layout exato deve ser validado no modelo alvo — ver docs/TESTES_HARDWARE.md.
+ */
+export function parsePeso(
+  buf: Buffer | string,
+  _protocolo: BalancaConfig['protocolo'],
+): number | null {
+  const bruto = typeof buf === 'string' ? buf : buf.toString('ascii')
+  // Remove framing (STX/ETX), CR/LF e espaços.
+  const texto = bruto.replace(/[\x02\x03\r\n]/g, '').trim()
+  if (!texto) return null
+  // Sinal negativo ou instabilidade explícita → leitura inválida.
+  if (texto.includes('-')) return null
+  if (/^[iI]/.test(texto)) return null
+
+  // 1) Formato com decimal explícito.
+  const decimal = texto.match(/(\d+[.,]\d{1,3})/)
+  if (decimal) {
+    const kg = parseFloat(decimal[1].replace(',', '.'))
+    return kg > 0 ? Number(kg.toFixed(3)) : null
+  }
+  // 2) Formato inteiro em gramas (campo de 4 a 6 dígitos).
+  const gramas = texto.match(/(\d{4,6})/)
+  if (gramas) {
+    const kg = parseInt(gramas[1], 10) / 1000
+    return kg > 0 ? kg : null
+  }
+  return null
 }
 
 /**

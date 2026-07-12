@@ -211,9 +211,26 @@ export interface VendaFiscal {
 }
 
 export type ResultadoEmissao =
-  | { status: 'autorizada'; chave: string; protocolo: string; xml: string }
-  | { status: 'contingencia'; chave: string; xml: string }
+  | { status: 'autorizada'; chave: string; protocolo: string; xml: string; qrCode: string }
+  | { status: 'contingencia'; chave: string; xml: string; qrCode: string }
   | { status: 'rejeitada'; codigo: string; motivo: string }
+
+// Dados estruturados p/ montar o DANFE NFC-e na impressora térmica (RF-26).
+export interface DanfeNfceDados {
+  emitenteNome: string
+  emitenteCnpj: string
+  itens: Array<{ descricao: string; quantidade: number; valorUnitario: number; total: number }>
+  total: number
+  desconto: number
+  pagamentos: PagamentoInput[]
+  troco: number
+  chave: string
+  protocolo: string | null
+  qrCode: string
+  emitidaEm: string
+  consumidorCpf: string | null
+  contingencia: boolean
+}
 
 export interface ResultadoCancelamento {
   ok: boolean
