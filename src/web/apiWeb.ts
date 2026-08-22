@@ -105,8 +105,16 @@ export const apiWeb: PdvApi = {
   caixa: {
     atual: () => rpc(IPC.caixa.atual),
     abrir: (usuarioId, valorAbertura) => rpc(IPC.caixa.abrir, usuarioId, valorAbertura),
-    fechar: (caixaId, usuarioId, valorContado) =>
-      rpc(IPC.caixa.fechar, caixaId, usuarioId, valorContado),
+    resumoPreFechamento: (caixaId, usuarioId) =>
+      rpc(IPC.caixa.resumoPreFechamento, caixaId, usuarioId),
+    fechar: (caixaId, usuarioId, valorContado, motivo, autorizadoPorId) =>
+      rpc(IPC.caixa.fechar, caixaId, usuarioId, valorContado, motivo, autorizadoPorId),
+    relatorioFechamento: (caixaId) => rpc(IPC.caixa.relatorioFechamento, caixaId),
+    // Sem impressora no navegador: o relatório em tela é o comprovante.
+    imprimirFechamento: async () => ({
+      ok: false,
+      detalhe: INDISPONIVEL_HARDWARE,
+    }),
     movimentar: (caixaId, tipo, valor, motivo, usuarioId, autorizadoPorId) =>
       rpc(IPC.caixa.movimentar, caixaId, tipo, valor, motivo, usuarioId, autorizadoPorId),
   },

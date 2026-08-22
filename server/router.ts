@@ -1,7 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { IPC } from '@shared/ipc'
 import type { ProdutoInput, RelatorioVendasFiltro } from '@shared/ipc'
-import type { FinalizarVendaInput, StatusDocumentoFiscal } from '@shared/types'
+import type {
+  FinalizarVendaInput,
+  StatusDocumentoFiscal,
+  ResultadoFechamento,
+} from '@shared/types'
+import { RASCUNHO_ID } from '@shared/types'
 import { getDb } from './db'
 import { vendasEspera } from './schema.pg'
 import { usuariosRepo } from './repos/usuarios.repo'
@@ -17,7 +22,8 @@ import { finalizarVenda, reprocessarContingencia } from './vendaService'
 import { importarProdutosCsvTexto } from './csvImport'
 import { getFiscalProvider } from './fiscal.web'
 
-const RASCUNHO_ID = '__rascunho__'
+// Limite padrão de diferença de caixa sem justificativa: R$ 10,00 (RF-11).
+const LIMITE_DIFERENCA_PADRAO = 1000
 
 /** Efeito de sessão que o handler HTTP traduz em Set-Cookie. */
 export type EfeitoSessao = { tipo: 'entrar'; usuarioId: number } | { tipo: 'sair' }
@@ -108,8 +114,48 @@ const handlers: Record<string, Handler> = {
   // ---- Caixa (RF-11/12/13) ----
   [IPC.caixa.atual]: () => caixaRepo.atual(),
   [IPC.caixa.abrir]: ([usuarioId, valor]: [number, number]) => caixaRepo.abrir(usuarioId, valor),
-  [IPC.caixa.fechar]: ([caixaId, usuarioId, contado]: [number, number, number]) =>
-    caixaRepo.fechar(caixaId, usuarioId, contado),
+  [IPC.caixa.resumoPreFechamento]: ([caixaId, usuarioId]: [number, number]) =>
+    caixaRepo.resumoPreFechamento(caixaId, usuarioId),
+
+  // RF-11: conferência cega — o esperado só é calculado depois que o contado chega.
+  [IPC.caixa.fechar]: async ([caixaId, usuarioId, contado, motivo, autorizadoPorId]: [
+    number,
+    number,
+    number,
+    (string | null)?,
+    (number | null)?,
+  ]): Promise<ResultadoFechamento> => {
+    const bloqueios = await caixaRepo.bloqueiosFechamento(caixaId, usuarioId)
+    if (bloqueios.length > 0) return { status: 'bloqueado', bloqueios }
+
+    const esperado = await caixaRepo.saldoEsperado(caixaId)
+    const diferenca = contado - esperado
+    const limite = Number(
+      (await configRepo.obter('caixa.diferenca.limite')) ?? LIMITE_DIFERENCA_PADRAO,
+    )
+
+    // Auditoria de toda tentativa, inclusive a recusada: sem isso dá para tentar
+    // valores até a diferença zerar e a conferência cega vira teatro.
+    await auditoriaRepo.registrar(usuarioId, 'caixa_conferencia', { caixaId, contado, diferenca })
+
+    if (Math.abs(diferenca) > limite && (!motivo || !autorizadoPorId)) {
+      return { status: 'requer_justificativa', diferenca, limite }
+    }
+
+    await caixaRepo.fechar(caixaId, usuarioId, contado, motivo ?? null, autorizadoPorId ?? null)
+    await auditoriaRepo.registrar(usuarioId, 'caixa_fechar', {
+      caixaId,
+      contado,
+      diferenca,
+      motivo: motivo ?? null,
+      autorizadoPorId: autorizadoPorId ?? null,
+    })
+    return { status: 'fechado', relatorio: await caixaRepo.relatorioFechamento(caixaId) }
+  },
+
+  [IPC.caixa.relatorioFechamento]: ([caixaId]: [number]) =>
+    caixaRepo.relatorioFechamento(caixaId),
+  // imprimirFechamento não existe na web — resolvido no adapter (sem impressora).
   [IPC.caixa.movimentar]: async ([caixaId, tipo, valor, motivo, usuarioId, autorizadoPorId]: [
     number,
     'sangria' | 'suprimento',

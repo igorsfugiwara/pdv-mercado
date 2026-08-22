@@ -1,6 +1,9 @@
 // Tipos de domínio compartilhados entre processo main e renderer.
 // Convenção monetária: TODOS os valores em centavos (inteiros), como no PDV Casa Ó.
 
+/** Id reservado da linha de rascunho em `vendas_espera` (invariante 4). */
+export const RASCUNHO_ID = '__rascunho__'
+
 export type Perfil = 'admin' | 'supervisor' | 'operador'
 
 export type UnidadeMedida = 'UN' | 'KG'
@@ -272,3 +275,65 @@ export interface LinhaCurvaAbc {
   percentualAcumulado: number
   classe: ClasseAbc
 }
+
+// ---- Fechamento de caixa (RF-11/RF-13) ----
+
+/**
+ * Resumo mostrado ANTES da contagem. Deliberadamente SEM qualquer valor em
+ * dinheiro: a conferência é cega (RF-11), e se o esperado chegar ao renderer
+ * antes da contagem ser confirmada, o operador digita o que está na tela.
+ */
+export interface ResumoPreFechamento {
+  caixaId: number
+  abertoEm: string
+  operadorAbertura: string
+  quantidadeVendas: number
+  vendasEmEspera: number
+  temRascunho: boolean
+  /** Impedimentos que precisam ser resolvidos antes de fechar. Vazio = pode fechar. */
+  bloqueios: string[]
+}
+
+/** Uma linha da composição do saldo esperado, com sinal (sangria é negativa). */
+export interface LinhaComposicao {
+  rotulo: string
+  valor: number
+}
+
+export interface MovimentoFechamento {
+  tipo: TipoMovimentoCaixa
+  valor: number
+  motivo: string | null
+  operador: string
+  autorizadoPor: string | null
+  criadoEm: string
+}
+
+export interface RelatorioFechamento {
+  caixaId: number
+  loja: string
+  operadorAbertura: string
+  operadorFechamento: string | null
+  abertoEm: string
+  fechadoEm: string | null
+  vendas: { quantidade: number; total: number }
+  porForma: Array<{ forma: FormaPagamento; quantidade: number; valor: number }>
+  movimentos: MovimentoFechamento[]
+  conferencia: {
+    composicao: LinhaComposicao[]
+    esperado: number
+    contado: number
+    diferenca: number
+    motivo: string | null
+  }
+  documentos: Array<{ status: StatusDocumentoFiscal; quantidade: number }>
+}
+
+/**
+ * Resultado da tentativa de fechar. É AQUI que o valor esperado chega ao
+ * renderer pela primeira vez — nunca antes da contagem ser enviada.
+ */
+export type ResultadoFechamento =
+  | { status: 'fechado'; relatorio: RelatorioFechamento }
+  | { status: 'requer_justificativa'; diferenca: number; limite: number }
+  | { status: 'bloqueado'; bloqueios: string[] }

@@ -45,7 +45,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 | # | Achado | Evidência | Fatia |
 |---|---|---|---|
 | 1 | **18 `prompt()`/`alert()`/`confirm()` no renderer.** CPF, multiplicador, desconto, peso, sangria, PIN de supervisor — tudo em diálogo nativo. Trava a thread, ignora o tema, não dá para navegar por teclado de forma previsível e some do fluxo do operador. | 10 em `CaixaScreen.tsx`, 4 em `EstoqueScreen.tsx`, 3 em `ProdutosScreen.tsx`, 1 em `RelatoriosScreen.tsx` | **02** |
-| 2 | **Não há tela de fechamento de caixa.** `caixaStore.fechar()` existe e o repositório calcula a diferença, mas nenhuma tela chama. Um turno começa e não termina. | `src/store/caixaStore.ts:20`, sem chamador em `src/screens/` | **04** |
+| 2 | ~~**Não há tela de fechamento de caixa.**~~ **Resolvido na fatia 04.** `caixaStore.fechar()` existe e o repositório calcula a diferença, mas nenhuma tela chama. Um turno começa e não termina. | `src/store/caixaStore.ts:20`, sem chamador em `src/screens/` | **04** |
 | 3 | **Parser de etiqueta de balança órfão.** `parseEanBalanca()` está escrito e testado, mas `processarCaptura()` não o chama — bipar etiqueta de balança (EAN-13 prefixo 2) simplesmente não acha o produto. | `electron/hardware/balanca.ts:103` definido; zero chamadas fora do próprio módulo | **05** |
 | 4 | **Desconto sem limite por perfil (RF-05).** `pedirDescontoVenda()` aceita qualquer valor de qualquer operador, sem autorização. Não há desconto por item na UI, embora o tipo suporte. | `CaixaScreen.tsx:155` | **03** |
 | 5 | **Cancelamento de item sem autorização (RF-06)** e só do último item — não dá para cancelar um item no meio da compra. | `CaixaScreen.tsx:161` | **03** |
@@ -71,7 +71,7 @@ primeiro porque sem ela não dá para exercitar nenhuma das outras ponta a ponta
 | **01** | [Fiscal Simulado e Ambiente de Teste](01%20-%20Fiscal%20Simulado%20e%20Ambiente%20de%20Teste.md) | App sobe e vende sem ACBrLib, certificado ou periférico. Provider fiscal escolhido por configuração. | — |
 | **02** | [Diálogos do Caixa](02%20-%20Diálogos%20do%20Caixa.md) | Todo `prompt/alert/confirm` vira diálogo próprio, operável por teclado, sem travar a thread. | 01 |
 | **03** | [Autorização e Limites](03%20-%20Autorização%20e%20Limites.md) | Limite de desconto por perfil, autorização por PIN acima do limite, cancelamento de item arbitrário — tudo auditado. | 02 |
-| **04** | [Fechamento de Caixa](04%20-%20Fechamento%20de%20Caixa.md) | Conferência cega, apuração de diferença, comprovante do turno. Fecha o ciclo abertura→fechamento. | 02 |
+| **04** ✅ | [Fechamento de Caixa](04%20-%20Fechamento%20de%20Caixa.md) | Conferência cega, apuração de diferença, comprovante do turno. Fecha o ciclo abertura→fechamento. | — |
 | **05** | [Etiqueta de Balança](05%20-%20Etiqueta%20de%20Balança.md) | Bipar etiqueta de balança resolve produto e peso/valor. Liga o parser órfão. | 02 |
 | **06** | [Painel e Estoque Mínimo](06%20-%20Painel%20e%20Estoque%20Mínimo.md) | Tela inicial com o estado do turno e os alertas que exigem ação. | 04 |
 | **07** | [Aceite Ponta a Ponta](07%20-%20Aceite%20Ponta%20a%20Ponta.md) | O critério 9.4 do PRD original virado em teste E2E que roda no CI. | 03, 04, 05 |
@@ -85,6 +85,12 @@ construir duas vezes: uma no diálogo nativo, outra quando ele for substituído.
 
 A **07** vem por último de propósito: o teste de aceite só é honesto quando existe o
 fluxo inteiro para exercitar.
+
+> **Nota de execução (fatia 04, entregue):** ela dependia da 02 no papel, mas na prática
+> não precisou — o fechamento virou uma tela multi-etapa com formulário inline em vez de
+> diálogos, então nenhum `prompt()` novo entrou. A dependência continua valendo para as
+> fatias 03 e 05, que pedem entrada *no meio* do fluxo do caixa e aí sim precisam da
+> primitiva de diálogo.
 
 ---
 

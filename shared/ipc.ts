@@ -7,6 +7,9 @@ import type {
   Caixa,
   MovimentoCaixa,
   DocumentoFiscal,
+  ResumoPreFechamento,
+  RelatorioFechamento,
+  ResultadoFechamento,
   FinalizarVendaInput,
   ResultadoVenda,
   StatusSefaz,
@@ -63,7 +66,22 @@ export interface PdvApi {
   caixa: {
     atual(): Promise<Caixa | null>
     abrir(usuarioId: number, valorAbertura: number): Promise<Caixa>
-    fechar(caixaId: number, usuarioId: number, valorContado: number): Promise<{ diferenca: number }>
+    /** Resumo sem valores monetários, para a etapa cega da conferência (RF-11). */
+    resumoPreFechamento(caixaId: number, usuarioId: number): Promise<ResumoPreFechamento>
+    /**
+     * Fecha o caixa. Só devolve `fechado` quando não há bloqueio e a diferença
+     * está dentro do limite — ou quando vem acompanhada de motivo e autorização.
+     */
+    fechar(
+      caixaId: number,
+      usuarioId: number,
+      valorContado: number,
+      motivo?: string | null,
+      autorizadoPorId?: number | null,
+    ): Promise<ResultadoFechamento>
+    /** Relatório de um caixa já fechado (RF-13) — para reimpressão e consulta. */
+    relatorioFechamento(caixaId: number): Promise<RelatorioFechamento>
+    imprimirFechamento(caixaId: number): Promise<PeripheralTestResult>
     movimentar(
       caixaId: number,
       tipo: 'sangria' | 'suprimento',
@@ -140,7 +158,10 @@ export const IPC = {
   caixa: {
     atual: 'caixa:atual',
     abrir: 'caixa:abrir',
+    resumoPreFechamento: 'caixa:resumoPreFechamento',
     fechar: 'caixa:fechar',
+    relatorioFechamento: 'caixa:relatorioFechamento',
+    imprimirFechamento: 'caixa:imprimirFechamento',
     movimentar: 'caixa:movimentar',
   },
   vendas: {

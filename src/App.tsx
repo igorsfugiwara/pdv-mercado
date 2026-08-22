@@ -3,6 +3,7 @@ import { useAuthStore } from './store/authStore'
 import Sidebar from './components/Sidebar'
 import LoginScreen from './screens/LoginScreen'
 import CaixaScreen from './screens/CaixaScreen'
+import FechamentoScreen from './screens/FechamentoScreen'
 import ProdutosScreen from './screens/ProdutosScreen'
 import EstoqueScreen from './screens/EstoqueScreen'
 import RelatoriosScreen from './screens/RelatoriosScreen'
@@ -20,6 +21,7 @@ export default function App() {
       <main className="flex-1 overflow-auto bg-bg">
         <Routes>
           <Route path="/caixa" element={<CaixaScreen />} />
+          <Route path="/fechamento" element={<FechamentoScreen />} />
           <Route path="/produtos" element={<ProdutosScreen />} />
           <Route path="/estoque" element={<EstoqueScreen />} />
           <Route path="/relatorios" element={<RelatoriosScreen />} />

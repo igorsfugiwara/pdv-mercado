@@ -3,6 +3,11 @@ import { useAuthStore } from '../store/authStore'
 
 const LINKS = [
   { to: '/caixa', label: 'Caixa', atalho: 'F1', perfis: ['admin', 'supervisor', 'operador'] },
+  {
+    to: '/fechamento',
+    label: 'Fechar caixa',
+    perfis: ['admin', 'supervisor', 'operador'],
+  },
   { to: '/produtos', label: 'Produtos', perfis: ['admin', 'supervisor'] },
   { to: '/estoque', label: 'Estoque', perfis: ['admin', 'supervisor'] },
   { to: '/relatorios', label: 'Relatórios', perfis: ['admin', 'supervisor'] },

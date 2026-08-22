@@ -7,7 +7,8 @@ import log from 'electron-log'
 import { IPC } from '@shared/ipc'
 import { toCsv } from '@shared/csv'
 import type { ProdutoInput, RelatorioVendasFiltro } from '@shared/ipc'
-import type { FinalizarVendaInput, StatusDocumentoFiscal } from '@shared/types'
+import type { FinalizarVendaInput, StatusDocumentoFiscal, ResultadoFechamento } from '@shared/types'
+import { RASCUNHO_ID } from '@shared/types'
 import { getDb } from '../db/index'
 import { vendasEspera } from '../db/schema'
 import { session } from './session'
@@ -24,11 +25,12 @@ import { finalizarVenda } from '../services/vendaService'
 import { importarProdutosCsv } from '../services/csvImport'
 import { backupAgora, exportarPara } from '../services/backup'
 import { getFiscalProvider, getContingenciaQueue } from '../fiscal'
-import { imprimirTeste } from '../hardware/printer'
+import { imprimirTeste, imprimirCupomFechamento } from '../hardware/printer'
 import { lerPeso } from '../hardware/balanca'
 import { abrirGaveta } from '../hardware/gaveta'
 
-const RASCUNHO_ID = '__rascunho__'
+// Limite padrão de diferença de caixa sem justificativa: R$ 10,00 (RF-11).
+const LIMITE_DIFERENCA_PADRAO = 1000
 
 export function registerIpc(dataDir: string) {
   const backupsDir = join(dataDir, 'backups')
@@ -105,9 +107,70 @@ export function registerIpc(dataDir: string) {
   ipcMain.handle(IPC.caixa.abrir, (_e, usuarioId: number, valor: number) =>
     caixaRepo.abrir(usuarioId, valor),
   )
-  ipcMain.handle(IPC.caixa.fechar, (_e, caixaId: number, usuarioId: number, contado: number) =>
-    caixaRepo.fechar(caixaId, usuarioId, contado),
+  ipcMain.handle(IPC.caixa.resumoPreFechamento, (_e, caixaId: number, usuarioId: number) =>
+    caixaRepo.resumoPreFechamento(caixaId, usuarioId),
   )
+
+  // RF-11: conferência cega. O esperado só é calculado DEPOIS que o contado chega —
+  // e só volta ao renderer dentro do relatório, nunca antes.
+  ipcMain.handle(
+    IPC.caixa.fechar,
+    async (
+      _e,
+      caixaId: number,
+      usuarioId: number,
+      contado: number,
+      motivo?: string | null,
+      autorizadoPorId?: number | null,
+    ): Promise<ResultadoFechamento> => {
+      const bloqueios = await caixaRepo.bloqueiosFechamento(caixaId, usuarioId)
+      if (bloqueios.length > 0) return { status: 'bloqueado', bloqueios }
+
+      const esperado = await caixaRepo.saldoEsperado(caixaId)
+      const diferenca = contado - esperado
+      const limite = Number(
+        (await configRepo.obter('caixa.diferenca.limite')) ?? LIMITE_DIFERENCA_PADRAO,
+      )
+
+      // Auditoria de TODA tentativa, inclusive a recusada por falta de justificativa:
+      // sem esse registro, dá para tentar valores até a diferença zerar e a
+      // conferência cega vira teatro.
+      await auditoriaRepo.registrar(usuarioId, 'caixa_conferencia', {
+        caixaId,
+        contado,
+        diferenca,
+      })
+
+      if (Math.abs(diferenca) > limite && (!motivo || !autorizadoPorId)) {
+        return { status: 'requer_justificativa', diferenca, limite }
+      }
+
+      await caixaRepo.fechar(caixaId, usuarioId, contado, motivo ?? null, autorizadoPorId ?? null)
+      await auditoriaRepo.registrar(usuarioId, 'caixa_fechar', {
+        caixaId,
+        contado,
+        diferenca,
+        motivo: motivo ?? null,
+        autorizadoPorId: autorizadoPorId ?? null,
+      })
+      return { status: 'fechado', relatorio: await caixaRepo.relatorioFechamento(caixaId) }
+    },
+  )
+
+  ipcMain.handle(IPC.caixa.relatorioFechamento, (_e, caixaId: number) =>
+    caixaRepo.relatorioFechamento(caixaId),
+  )
+
+  ipcMain.handle(IPC.caixa.imprimirFechamento, async (_e, caixaId: number) => {
+    try {
+      await imprimirCupomFechamento(await caixaRepo.relatorioFechamento(caixaId))
+      return { ok: true, detalhe: 'Cupom de fechamento enviado à impressora.' }
+    } catch (e) {
+      // Sem impressora o fechamento não falha — o relatório em tela é o comprovante.
+      log.warn('[caixa] impressão de fechamento indisponível', e)
+      return { ok: false, detalhe: String(e) }
+    }
+  })
   ipcMain.handle(
     IPC.caixa.movimentar,
     async (_e, caixaId, tipo, valor, motivo, usuarioId, autorizadoPorId) => {

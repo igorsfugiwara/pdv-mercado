@@ -27,7 +27,12 @@ const api: PdvApi = {
   caixa: {
     atual: () => invoke(IPC.caixa.atual),
     abrir: (usuarioId, valor) => invoke(IPC.caixa.abrir, usuarioId, valor),
-    fechar: (caixaId, usuarioId, contado) => invoke(IPC.caixa.fechar, caixaId, usuarioId, contado),
+    resumoPreFechamento: (caixaId, usuarioId) =>
+      invoke(IPC.caixa.resumoPreFechamento, caixaId, usuarioId),
+    fechar: (caixaId, usuarioId, contado, motivo, autorizadoPorId) =>
+      invoke(IPC.caixa.fechar, caixaId, usuarioId, contado, motivo, autorizadoPorId),
+    relatorioFechamento: (caixaId) => invoke(IPC.caixa.relatorioFechamento, caixaId),
+    imprimirFechamento: (caixaId) => invoke(IPC.caixa.imprimirFechamento, caixaId),
     movimentar: (caixaId, tipo, valor, motivo, usuarioId, autorizadoPorId) =>
       invoke(IPC.caixa.movimentar, caixaId, tipo, valor, motivo, usuarioId, autorizadoPorId),
   },
