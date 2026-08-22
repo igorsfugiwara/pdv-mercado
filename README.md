@@ -115,7 +115,7 @@ npm run build:linux   # .AppImage + .deb (Ubuntu 22.04+)
 
 - **Web (Vercel):** ✅ renderer completo sobre Postgres — auth com sessão assinada, caixa, venda transacional, estoque, relatórios e curva ABC, tudo coberto por testes que rodam contra Postgres real (PGlite). NFC-e **simulada** e periféricos ausentes por limite da plataforma; ver a tabela de diferenças em `docs/DEPLOY_VERCEL.md`.
 
-Ver `docs/FISCAL.md`, `docs/MANUAL_OPERADOR.md`, `docs/TESTES_HARDWARE.md`, `docs/DEPLOY_VERCEL.md`.
+Ver `docs/FISCAL.md`, `docs/MANUAL_OPERADOR.md`, `docs/TESTES_VM.md`, `docs/TESTES_HARDWARE.md`, `docs/DEPLOY_VERCEL.md`.
 
 ## Atalhos de teclado (RF-10)
 

@@ -52,6 +52,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 | 6 | **Sem painel de abertura** — o alerta de estoque mínimo (RF-18) não tem onde aparecer. `estoque.alertasMinimo()` existe e ninguém consome no lugar certo. | não há `DashboardScreen` | **06** |
 | 7 | **Fiscal do desktop só instancia `AcbrNfceProvider`.** Sem a lib nativa e o certificado, o módulo fiscal não inicializa — ou seja, hoje não dá para rodar o app inteiro numa máquina de teste. | `electron/fiscal/index.ts:13` | **01** |
 | 8 | **Busca sem debounce** — dispara uma consulta por tecla digitada. | `src/components/BuscaProdutos.tsx:23` | **02** |
+| 9 | **Detecção de bipe por velocidade não existe (RF-01).** O PRD pede detecção por cadência de digitação *além* do sufixo Enter; a captura só reage ao Enter. Efeito prático hoje é benigno — digitar e bipar são equivalentes, o que ajuda o teste em VM — mas o requisito está aberto. | `src/screens/CaixaScreen.tsx`, `onKeyDown` do campo de captura | **02** |
 
 ### O que fica explicitamente para depois
 

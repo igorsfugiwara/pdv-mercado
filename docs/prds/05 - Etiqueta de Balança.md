@@ -77,6 +77,11 @@ Leitura serial da balança (RS-232). Esta fatia é sobre a **etiqueta impressa**
 pelo leitor de código de barras como teclado — funciona sem nenhum periférico serial.
 Balança serial já tem `parsePeso()` e é assunto de hardware físico.
 
+> **Recorte combinado:** a balança física só será testada imediatamente antes da
+> integração, na balança de verdade. Tudo que não depende dela pode andar agora — e esta
+> fatia inteira não depende: a etiqueta chega digitada. O protocolo serial dá para exercitar
+> com porta virtual, ver [`docs/TESTES_VM.md`](../TESTES_VM.md) §2.
+
 ## 4. Critério de aceite
 
 Com "Banana Prata (kg)" cadastrada com código interno `2001`, preço R$ 5,99/kg, pesável:
