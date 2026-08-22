@@ -9,6 +9,8 @@ Contexto fixo: **UF São Paulo · Simples Nacional · 1 caixa por instalação �
 
 Ponto de partida de UI/domínio: PDV Casa Ó (tema dark+dourado, valores em centavos).
 
+PRD completo em [`docs/PRD-PDV-Supermercado.md`](docs/PRD-PDV-Supermercado.md). O trabalho em andamento está fatiado em PRDs próprios em [`docs/prds/`](docs/prds/) — comece pelo [plano](docs/prds/00%20-%20Plano%20e%20Estado%20Atual.md).
+
 ## Stack
 
 | Camada | Tecnologia |
