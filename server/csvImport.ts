@@ -1,14 +1,12 @@
-import { readFileSync } from 'node:fs'
-import { produtosRepo, faltamCamposFiscais } from '../db/repositories/produtos.repo'
+import { produtosRepo, faltamCamposFiscais } from './repos/produtos.repo'
 import { cabecalhoValido, separarLinhas, parseLinhaProduto } from '@shared/csvProdutos'
 
-// RF-15: importação de produtos via CSV com validação linha a linha.
-// O parsing vive em `shared/csvProdutos.ts` (compartilhado com a versão web);
-// aqui só entra a leitura do arquivo e a persistência.
-export async function importarProdutosCsv(
-  caminho: string,
+// Igual ao desktop (RF-15), mas recebe o CONTEÚDO do CSV: no navegador não há
+// caminho de arquivo — o adapter lê o File escolhido e manda o texto.
+export async function importarProdutosCsvTexto(
+  conteudo: string,
 ): Promise<{ importados: number; erros: string[] }> {
-  const linhas = separarLinhas(readFileSync(caminho, 'utf-8'))
+  const linhas = separarLinhas(conteudo)
   const erros: string[] = []
   let importados = 0
 

@@ -1,12 +1,16 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type PluginOption } from 'vite'
 import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
-import electron from 'vite-plugin-electron/simple'
-import renderer from 'vite-plugin-electron-renderer'
 
-// Renderer (React) + Electron main/preload build orchestration.
-// Native modules (better-sqlite3, koffi, serialport, argon2, node-thermal-printer)
-// run ONLY in the main process and are marked external so Vite never bundles them.
+// Dois alvos a partir do MESMO renderer:
+//   · desktop (padrão) → React + build do main/preload do Electron;
+//   · web (PDV_TARGET=web) → só o SPA estático, servido pela Vercel com /api.
+//
+// Os plugins do Electron entram por import dinâmico de propósito: no build da
+// Vercel eles não estão instalados (ver `optionalDependencies` no package.json),
+// e um import estático quebraria o carregamento deste arquivo.
+
+// Módulos nativos rodam SÓ no processo main — marcados external p/ o Vite não empacotar.
 const nativeMainDeps = [
   'better-sqlite3',
   'koffi',
@@ -23,36 +27,44 @@ const alias = {
   '@shared': resolve(__dirname, 'shared'),
 }
 
-export default defineConfig({
-  resolve: { alias },
-  plugins: [
-    react(),
-    electron({
-      main: {
-        entry: 'electron/main.ts',
-        vite: {
-          resolve: { alias },
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: { external: nativeMainDeps },
+export default defineConfig(async () => {
+  const alvoWeb = process.env.PDV_TARGET === 'web'
+  const plugins: PluginOption[] = [react()]
+
+  if (!alvoWeb) {
+    const { default: electron } = await import('vite-plugin-electron/simple')
+    const { default: renderer } = await import('vite-plugin-electron-renderer')
+    plugins.push(
+      electron({
+        main: {
+          entry: 'electron/main.ts',
+          vite: {
+            resolve: { alias },
+            build: {
+              outDir: 'dist-electron',
+              rollupOptions: { external: nativeMainDeps },
+            },
           },
         },
-      },
-      preload: {
-        input: 'electron/preload.ts',
-        vite: {
-          resolve: { alias },
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: { external: nativeMainDeps },
+        preload: {
+          input: 'electron/preload.ts',
+          vite: {
+            resolve: { alias },
+            build: {
+              outDir: 'dist-electron',
+              rollupOptions: { external: nativeMainDeps },
+            },
           },
         },
-      },
-    }),
-    // Allows using Node/Electron built-ins from the renderer only where whitelisted.
-    renderer(),
-  ],
-  build: {
-    outDir: 'dist',
-  },
+      }),
+      // Permite built-ins do Node/Electron no renderer onde explicitamente liberado.
+      renderer(),
+    )
+  }
+
+  return {
+    resolve: { alias },
+    plugins,
+    build: { outDir: 'dist' },
+  }
 })

@@ -4,6 +4,7 @@ import type { ProdutoInput } from '@shared/ipc'
 import { useAuthStore } from '../store/authStore'
 import { formatBRL, parseBRL } from '../lib/money'
 import ProdutoForm from '../components/ProdutoForm'
+import { ehWeb } from '../lib/plataforma'
 
 export default function ProdutosScreen() {
   const usuario = useAuthStore((s) => s.usuario)!
@@ -28,8 +29,13 @@ export default function ProdutosScreen() {
   }
 
   async function importarCsv() {
-    const caminho = prompt('Caminho do arquivo CSV:')
-    if (!caminho) return
+    // No desktop o main lê o arquivo do disco; na web o adapter abre o seletor
+    // de arquivos e envia o conteúdo, então não há caminho a pedir.
+    let caminho = ''
+    if (!ehWeb()) {
+      caminho = prompt('Caminho do arquivo CSV:') ?? ''
+      if (!caminho) return
+    }
     const r = await window.api.produtos.importarCsv(caminho)
     alert(`Importados: ${r.importados}\nErros:\n${r.erros.join('\n') || 'nenhum'}`)
     await recarregar()

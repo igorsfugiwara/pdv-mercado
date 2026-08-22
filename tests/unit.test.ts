@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { formatBRL, parseBRL } from '../src/lib/money'
 import { validarCpf } from '../src/lib/cpf'
 import { parseEanBalanca } from '../electron/hardware/balanca'
-import { validarFinalizacao, totalVenda } from '../electron/services/vendaValidacao'
+import { validarFinalizacao, totalVenda } from '../shared/vendaValidacao'
 import type { FinalizarVendaInput } from '../shared/types'
 
 describe('money (centavos)', () => {

@@ -16,3 +16,6 @@ data/
 *.p12
 .env
 .env.local
+
+# Vercel
+.vercel

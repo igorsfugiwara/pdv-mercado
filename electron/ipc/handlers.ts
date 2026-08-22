@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import log from 'electron-log'
 import { IPC } from '@shared/ipc'
+import { toCsv } from '@shared/csv'
 import type { ProdutoInput, RelatorioVendasFiltro } from '@shared/ipc'
 import type { FinalizarVendaInput, StatusDocumentoFiscal } from '@shared/types'
 import { getDb } from '../db/index'
@@ -256,15 +257,3 @@ export function registerIpc(dataDir: string) {
   log.info('[ipc] handlers registrados')
 }
 
-// RF-25: serialização CSV (separador ';', escape de aspas). Linha de cabeçalho a partir das chaves.
-function toCsv(linhas: Record<string, unknown>[]): string {
-  if (!linhas.length) return ''
-  const colunas = Object.keys(linhas[0])
-  const escapar = (v: unknown) => {
-    const s = v == null ? '' : String(v)
-    return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-  }
-  const cabecalho = colunas.join(';')
-  const corpo = linhas.map((l) => colunas.map((c) => escapar(l[c])).join(';'))
-  return [cabecalho, ...corpo].join('\n')
-}
