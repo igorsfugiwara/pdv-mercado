@@ -42,6 +42,27 @@ export default function ConfigScreen() {
         </section>
 
         <section className="card">
+          <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">Emitente</h2>
+          <div className="space-y-3">
+            <CampoConfig chave="emitente.nome" label="Nome da loja" config={config} onSalvar={salvar} placeholder="Mercado do Bairro Ltda" />
+            <CampoConfig chave="emitente.cnpj" label="CNPJ" config={config} onSalvar={salvar} placeholder="00000000000000" />
+          </div>
+          <p className="mt-2 text-xs text-text-muted">
+            Aparecem no cabeçalho do DANFE e do cupom de fechamento.
+          </p>
+        </section>
+
+        <section className="card">
+          <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">Caixa</h2>
+          <div className="space-y-3">
+            <CampoConfig chave="caixa.diferenca.limite" label="Limite de diferença sem justificativa (centavos)" config={config} onSalvar={salvar} placeholder="1000" />
+          </div>
+          <p className="mt-2 text-xs text-text-muted">
+            Acima deste valor, o fechamento exige motivo e PIN de supervisor. Padrão: 1000 (R$ 10,00).
+          </p>
+        </section>
+
+        <section className="card">
           <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">Fiscal (NFC-e SEFAZ-SP)</h2>
           <div className="space-y-3">
             <CampoConfig chave="fiscal.ambiente" label="Ambiente" config={config} onSalvar={salvar} placeholder="homologacao | producao" />

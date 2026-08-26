@@ -10,6 +10,7 @@ import {
   usuarios,
   documentosFiscais,
 } from '../schema.pg'
+import { configRepo } from './config.repo'
 import { RASCUNHO_ID } from '@shared/types'
 import type {
   Caixa,
@@ -300,7 +301,7 @@ export const caixaRepo = {
 
     return {
       caixaId,
-      loja: 'PDV Mercado',
+      loja: (await configRepo.obter('emitente.nome')) ?? 'PDV Mercado',
       operadorAbertura: aberturaUser?.nome ?? '—',
       operadorFechamento: fechamentoUser?.nome ?? null,
       abertoEm: caixa.abertoEm,

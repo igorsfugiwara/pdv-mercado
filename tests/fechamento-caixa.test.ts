@@ -216,6 +216,16 @@ describe('cupom de fechamento (RF-13)', () => {
     expect(linhas.every((l) => l.length <= 32)).toBe(true)
   })
 
+  it('usa o nome da loja configurado, não um valor fixo', async () => {
+    const { configRepo } = await import('../electron/db/repositories/config.repo')
+    await configRepo.definir('emitente.nome', 'Mercado do Bairro')
+    const caixa = caixaRepo.abrir(1, 10000)
+    await caixaRepo.fechar(caixa.id, 1, 10000)
+    const r = await caixaRepo.relatorioFechamento(caixa.id)
+    expect(r.loja).toBe('Mercado do Bairro')
+    expect(montarCupomFechamento(r)[0]).toBe('Mercado do Bairro')
+  })
+
   it('marca "SEM DIFERENCA" quando bate exato', async () => {
     const caixa = caixaRepo.abrir(1, 10000)
     await caixaRepo.fechar(caixa.id, 1, 10000)
