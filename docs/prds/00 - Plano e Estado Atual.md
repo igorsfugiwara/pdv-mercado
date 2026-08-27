@@ -118,10 +118,14 @@ quatro automaticamente antes de chamar o revisor.
 
 ```bash
 npm run typecheck       # tsc --noEmit, projeto inteiro
-npm test                # vitest, suíte completa
+npm test                # vitest sob o Node do Electron (ver README: ABI nativa)
 npm run check:offline   # RNF-06
 npx vite build          # o alvo desktop ainda compila
 ```
+
+> `npm test` roda o vitest com `ELECTRON_RUN_AS_NODE=1`. Depois do `electron-rebuild` os
+> módulos nativos são da ABI do Electron e o Node puro não os carrega — sem isso, ou o app
+> funciona ou a suíte funciona, nunca os dois.
 
 Regressão é bloqueio: uma fatia que quebra teste de outra volta para o executor.
 

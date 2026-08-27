@@ -19,8 +19,9 @@
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx electron/db/seed.ts",
     "db:setup": "tsx server/setup.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs run",
+    "test:watch": "cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs",
+    "test:node": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "check:offline": "bash scripts/check-offline.sh"

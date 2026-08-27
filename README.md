@@ -95,6 +95,13 @@ npm test
 > Sem `build-essential` o `electron-rebuild` falha com `ENOENT` no node-gyp — ele não
 > encontra o compilador. No Windows, use as *Build Tools for Visual Studio* (workload
 > "Desktop development with C++").
+>
+> **Consequência nos testes:** depois do rebuild os módulos nativos passam a ser da ABI do
+> Electron, e o `vitest` sob Node puro não consegue mais carregá-los. Por isso `npm test`
+> roda o vitest **usando o Node do próprio Electron** (`ELECTRON_RUN_AS_NODE=1`). Não é
+> firula: é o que permite ter o app e a suíte funcionando com a mesma instalação. O script
+> `npm run test:node` existe só para ambientes sem Electron (CI de lint, por exemplo) e
+> falha nos testes que abrem SQLite.
 
 ### Versão web
 
