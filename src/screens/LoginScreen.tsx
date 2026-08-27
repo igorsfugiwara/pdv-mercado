@@ -10,8 +10,12 @@ export default function LoginScreen() {
   async function entrar(e: React.FormEvent) {
     e.preventDefault()
     setCarregando(true)
-    await login(usuario, senha)
-    setCarregando(false)
+    try {
+      await login(usuario, senha)
+    } finally {
+      // `finally` para o botão nunca ficar preso em "Entrando…".
+      setCarregando(false)
+    }
   }
 
   return (

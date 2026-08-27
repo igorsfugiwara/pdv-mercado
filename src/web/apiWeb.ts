@@ -37,6 +37,15 @@ async function rpc<T>(canal: string, ...args: unknown[]): Promise<T> {
   try {
     corpo = await resp.json()
   } catch {
+    // 404 sem corpo é o sintoma clássico de abrir o app no dev server do Vite
+    // pelo navegador: ali não existe /api, e sem esta mensagem o erro fica
+    // parecendo credencial inválida.
+    if (resp.status === 404) {
+      throw new ErroRpc(
+        'API não encontrada. Se você abriu o endereço do Vite no navegador, use a janela do app (Electron). Na web, o backend precisa de DATABASE_URL configurada.',
+        404,
+      )
+    }
     throw new ErroRpc(`Resposta inválida do servidor (HTTP ${resp.status}).`, resp.status)
   }
 
