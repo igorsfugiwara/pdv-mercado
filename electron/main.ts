@@ -75,7 +75,11 @@ function hardenNetwork() {
     const permitido =
       url.startsWith('file:') ||
       url.startsWith('devtools:') ||
-      url.startsWith(process.env.VITE_DEV_SERVER_URL ?? 'http://localhost')
+      url.startsWith(process.env.VITE_DEV_SERVER_URL ?? 'http://localhost') ||
+      // O HMR do Vite abre um websocket no mesmo host do dev server; sem isto o
+      // hot reload morre em desenvolvimento. RNF-06 é sobre request EXTERNA — o
+      // próprio bundler na máquina local não é. Em produção não há dev server.
+      (!app.isPackaged && /^wss?:\/\/localhost(:\d+)?\//.test(url))
     if (!permitido) {
       log.warn('[net] request externa bloqueada:', url)
       return cb({ cancel: true })

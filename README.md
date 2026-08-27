@@ -82,7 +82,19 @@ npm run check:offline
 npm test
 ```
 
-> **Módulos nativos:** `better-sqlite3`, `argon2`, `serialport` e `koffi` compilam para a versão do Electron. Se necessário: `npx electron-rebuild`.
+> **Módulos nativos — leia antes do primeiro `npm run dev`.**
+> `npm install` baixa binários pré-compilados para o **Node**, mas o Electron usa outra ABI
+> (`NODE_MODULE_VERSION` diferente). Sem reconstruir, o app abre a janela e falha no
+> `initDb` com *"compiled against a different Node.js version"*.
+>
+> ```bash
+> sudo apt install -y build-essential python3   # Ubuntu/Debian: gcc, g++, make
+> npx electron-rebuild -f                       # reconstrói para a ABI do Electron
+> ```
+>
+> Sem `build-essential` o `electron-rebuild` falha com `ENOENT` no node-gyp — ele não
+> encontra o compilador. No Windows, use as *Build Tools for Visual Studio* (workload
+> "Desktop development with C++").
 
 ### Versão web
 
