@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { PdvApi } from '@shared/ipc'
 
 declare global {

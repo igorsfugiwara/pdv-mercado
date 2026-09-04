@@ -62,7 +62,10 @@ function createWindow() {
   const devUrl = process.env.VITE_DEV_SERVER_URL
   if (devUrl) {
     win.loadURL(devUrl)
-    win.webContents.openDevTools({ mode: 'detach' })
+    // DevTools só quando pedido (PDV_DEVTOOLS=1). Abrir sempre criava uma segunda
+    // janela destacada a cada boot, e ficava ambíguo qual das duas é o app.
+    if (process.env.PDV_DEVTOOLS === '1') win.webContents.openDevTools({ mode: 'detach' })
+    win.focus()
   } else {
     win.loadFile(join(__dirname, '..', 'dist', 'index.html'))
   }
