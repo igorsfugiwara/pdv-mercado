@@ -8,6 +8,7 @@ import { validarCpf } from '../lib/cpf'
 import AberturaCaixa from '../components/AberturaCaixa'
 import BuscaProdutos from '../components/BuscaProdutos'
 import PagamentoPanel from '../components/PagamentoPanel'
+import BarraAtalhos from '../components/BarraAtalhos'
 
 export default function CaixaScreen() {
   const { caixa, carregar } = useCaixaStore()
@@ -19,6 +20,8 @@ export default function CaixaScreen() {
   const [pagamento, setPagamento] = useState(false)
   const [mensagem, setMensagem] = useState<string | null>(null)
   const [esperaAberta, setEsperaAberta] = useState(false)
+  // Linha corrente da lista: é o que F6 cancela e o que o desconto por item usará.
+  const [selecionado, setSelecionado] = useState(0)
   const [emEspera, setEmEspera] = useState<Array<{ id: string; input: FinalizarVendaInput }>>([])
   const recuperado = useRef(false)
 
@@ -81,7 +84,9 @@ export default function CaixaScreen() {
       void lerPesoEAdicionar(p)
       return
     }
-    cart.adicionarProduto(p)
+    // O índice vem do store: com empilhamento, a linha afetada pode ser uma já
+    // existente, e `cart.itens.length` leria o estado anterior ao set.
+    setSelecionado(cart.adicionarProduto(p))
     setMensagem(`+ ${p.descricao}`)
   }
 
@@ -93,7 +98,7 @@ export default function CaixaScreen() {
       peso = manual ? parseFloat(manual.replace(',', '.')) : undefined
     }
     if (peso && peso > 0) {
-      cart.adicionarProduto(p, { peso })
+      setSelecionado(cart.adicionarProduto(p, { peso }))
       setMensagem(`+ ${p.descricao} (${peso} kg)`)
     }
   }
@@ -121,11 +126,21 @@ export default function CaixaScreen() {
   // RF-10: operação 100% por teclado.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); trocarOperador() }
+      // Overlay aberto captura o teclado. Sem esta guarda, um F10 por baixo da
+      // busca abre o pagamento escondido, e as setas mexem na lista de itens em
+      // vez de navegar o resultado da busca.
+      if (busca || pagamento || esperaAberta) return
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelecionado((i) => Math.min(i + 1, Math.max(0, cart.itens.length - 1)))
+      }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelecionado((i) => Math.max(0, i - 1)) }
+      else if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); trocarOperador() }
       else if (e.key === 'F2') { e.preventDefault(); setBusca(true) }
       else if (e.key === 'F3') { e.preventDefault(); definirMultiplicador() }
       else if (e.key === 'F4') { e.preventDefault(); pedirDescontoVenda() }
-      else if (e.key === 'F6') { e.preventDefault(); cancelarUltimoItem() }
+      else if (e.key === 'F6') { e.preventDefault(); cancelarItemSelecionado() }
       else if (e.key === 'F7') { e.preventDefault(); void colocarEmEspera() }
       else if (e.key === 'F8') { e.preventDefault(); pedirCpf() }
       else if (e.key === 'F9') { e.preventDefault(); void sangriaSuprimento() }
@@ -136,7 +151,7 @@ export default function CaixaScreen() {
     return () => window.removeEventListener('keydown', onKey)
     // `usuario` nas deps: após Ctrl+L (troca de operador) o handler precisa
     // recapturar o operador atual, senão F7/F9 gravam sob o operador anterior.
-  }, [cart, caixa, usuario]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cart, caixa, usuario, busca, pagamento, esperaAberta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function pedirCpf() {
     const cpf = prompt('CPF na nota:')
@@ -158,13 +173,15 @@ export default function CaixaScreen() {
     if (v) cart.aplicarDescontoVenda(parseBRL(v))
   }
 
-  // RF-06: cancela o último item lançado (com estorno automático do carrinho).
-  function cancelarUltimoItem() {
+  // RF-06: cancela o item selecionado. Antes só dava para remover o último —
+  // se o cliente desistisse do terceiro de dez itens, não havia caminho.
+  function cancelarItemSelecionado() {
     if (cart.itens.length === 0) return
-    const idx = cart.itens.length - 1
+    const idx = Math.min(selecionado, cart.itens.length - 1)
     const it = cart.itens[idx]
     cart.removerItem(idx)
-    setMensagem(`Item removido: ${it.descricao}`)
+    setSelecionado((i) => Math.max(0, Math.min(i, cart.itens.length - 2)))
+    setMensagem(`Item cancelado: ${it.descricao}`)
   }
 
   // RF-26/27: coloca a venda em espera para atender outra e retomar depois.
@@ -236,7 +253,8 @@ export default function CaixaScreen() {
         <input
           ref={capturaRef}
           className="input flex-1 font-mono text-lg"
-          placeholder="Bipe o código de barras ou digite…  (F2 buscar · F10 pagar)"
+          placeholder="Bipe o código de barras ou digite o código…"
+          aria-label="Captura de código de barras"
           value={captura}
           onChange={(e) => setCaptura(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && processarCaptura()}
@@ -259,26 +277,41 @@ export default function CaixaScreen() {
             <span className="col-span-2 text-right">Total</span>
           </div>
           <ul className="flex-1 overflow-auto">
-            {cart.itens.map((it, i) => (
-              <li key={i} className="grid grid-cols-12 items-center border-b border-border/50 py-2 text-sm">
-                <span className="col-span-6 truncate">{it.descricao}</span>
-                <span className="col-span-2 text-right font-mono">
-                  {it.peso ? `${it.peso} kg` : it.quantidade}
-                </span>
-                <span className="col-span-2 text-right font-mono">{formatBRL(it.precoUnitario)}</span>
-                <span className="col-span-2 text-right font-mono">
-                  {formatBRL(Math.round(it.precoUnitario * it.quantidade) - it.desconto)}
-                </span>
-                <button
-                  className="col-span-12 text-right text-xs text-danger"
-                  onClick={() => cart.removerItem(i)}
+            {cart.itens.map((it, i) => {
+              const corrente = i === Math.min(selecionado, cart.itens.length - 1)
+              return (
+                <li
+                  key={i}
+                  onClick={() => setSelecionado(i)}
+                  aria-current={corrente ? 'true' : undefined}
+                  className={`grid cursor-default grid-cols-12 items-center border-l-2 py-1.5 pr-1 text-sm ${
+                    corrente
+                      ? 'border-l-primary bg-primary/10 font-medium text-text'
+                      : 'border-l-transparent border-b border-b-border text-text'
+                  }`}
                 >
-                  remover (F6)
-                </button>
-              </li>
-            ))}
+                  <span className="col-span-6 truncate pl-2">{it.descricao}</span>
+                  <span className="col-span-2 text-right font-mono">
+                    {it.peso ? `${it.peso} kg` : it.quantidade}
+                  </span>
+                  <span className="col-span-2 text-right font-mono text-text-muted">
+                    {formatBRL(it.precoUnitario)}
+                  </span>
+                  <span className="col-span-2 text-right font-mono">
+                    {formatBRL(Math.round(it.precoUnitario * it.quantidade) - it.desconto)}
+                  </span>
+                </li>
+              )
+            })}
             {cart.itens.length === 0 && (
-              <li className="py-8 text-center text-text-muted">Nenhum item. Bipe um produto.</li>
+              <li className="px-4 py-10 text-center text-sm text-text-muted">
+                Bipe o código de barras do produto para começar.
+                <br />
+                <span className="text-xs">
+                  Sem leitor? Digite o código e pressione Enter, ou use <kbd className="kbd">F2</kbd>{' '}
+                  para buscar pelo nome.
+                </span>
+              </li>
             )}
           </ul>
         </div>
@@ -316,11 +349,28 @@ export default function CaixaScreen() {
         </div>
       </div>
 
-      {mensagem && (
-        <div className="mt-2 rounded-md bg-surface-alt px-3 py-2 text-sm text-text-muted">
-          {mensagem}
-        </div>
-      )}
+      <div className="mt-3 space-y-2">
+        {mensagem && (
+          <div className="rounded-md border-l-2 border-l-primary bg-surface-alt px-3 py-2 text-sm text-text">
+            {mensagem}
+          </div>
+        )}
+        <BarraAtalhos
+          atalhos={[
+            { tecla: 'F2', rotulo: 'Buscar' },
+            { tecla: 'F3', rotulo: 'Quantidade' },
+            { tecla: 'F4', rotulo: 'Desconto' },
+            { tecla: '↑↓', rotulo: 'Selecionar item', ativo: cart.itens.length > 1 },
+            { tecla: 'F6', rotulo: 'Cancelar item', ativo: cart.itens.length > 0 },
+            { tecla: 'F7', rotulo: 'Espera', ativo: cart.itens.length > 0 },
+            { tecla: 'F8', rotulo: 'CPF na nota' },
+            { tecla: 'F9', rotulo: 'Sangria/suprimento' },
+            { tecla: 'F10', rotulo: 'Pagamento', ativo: cart.itens.length > 0 },
+            { tecla: 'F12', rotulo: 'Cancelar venda', ativo: cart.itens.length > 0 },
+            { tecla: 'Ctrl+L', rotulo: 'Trocar operador' },
+          ]}
+        />
+      </div>
 
       {busca && (
         <BuscaProdutos

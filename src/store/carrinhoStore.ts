@@ -8,7 +8,8 @@ interface CarrinhoState {
   multiplicador: number // RF-04
   setMultiplicador: (n: number) => void
   hidratar: (input: FinalizarVendaInput) => void
-  adicionarProduto: (p: Produto, opts?: { quantidade?: number; peso?: number }) => void
+  /** Devolve o índice da linha afetada — a nova ou a existente que foi somada. */
+  adicionarProduto: (p: Produto, opts?: { quantidade?: number; peso?: number }) => number
   removerItem: (index: number) => void
   aplicarDescontoItem: (index: number, valor: number) => void
   aplicarDescontoVenda: (valor: number) => void
@@ -40,16 +41,47 @@ export const useCarrinhoStore = create<CarrinhoState>((set, get) => ({
 
   adicionarProduto: (p, opts) => {
     const quantidade = opts?.peso ?? opts?.quantidade ?? get().multiplicador
+    const peso = opts?.peso ?? null
+    const itens = get().itens
+
+    // Bipar o mesmo produto duas vezes soma na linha existente em vez de criar
+    // outra. Numa compra de 20 itens a diferença é entre uma lista que cabe na
+    // tela e uma que o operador precisa rolar para conferir.
+    //
+    // Não empilha pesável (cada pesagem é uma medição distinta), nem linha que
+    // já recebeu desconto por item (somar mudaria o desconto acordado), nem
+    // preço diferente (o produto pode ter sido remarcado no meio da venda).
+    const existente = itens.findIndex(
+      (i) =>
+        i.produtoId === p.id &&
+        i.peso === null &&
+        peso === null &&
+        i.desconto === 0 &&
+        i.precoUnitario === p.precoVenda,
+    )
+
+    if (existente >= 0) {
+      set((s) => ({
+        itens: s.itens.map((i, idx) =>
+          idx === existente ? { ...i, quantidade: i.quantidade + quantidade } : i,
+        ),
+        multiplicador: 1,
+      }))
+      void persistirRascunho(get)
+      return existente
+    }
+
     const item: ItemCarrinho = {
       produtoId: p.id,
       descricao: p.descricao,
       quantidade,
-      peso: opts?.peso ?? null,
+      peso,
       precoUnitario: p.precoVenda,
       desconto: 0,
     }
     set((s) => ({ itens: [...s.itens, item], multiplicador: 1 }))
     void persistirRascunho(get)
+    return itens.length
   },
 
   removerItem: (index) => {
