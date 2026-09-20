@@ -19,3 +19,7 @@ data/
 
 # Vercel
 .vercel
+
+# Checklist pessoal de operação — o repositório é público por decisão,
+# e esta lista é de uso interno (acessos, credenciamento, passos manuais).
+docs/PENDENCIAS.md
