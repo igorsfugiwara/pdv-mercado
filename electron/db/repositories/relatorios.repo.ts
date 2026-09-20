@@ -1,8 +1,14 @@
 import { and, gte, lte, eq, sql, desc } from 'drizzle-orm'
 import { getDb } from '../index'
 import { vendas, vendaItens, vendaPagamentos, produtos, grupos, usuarios } from '../schema'
-import type { RelatorioVendas, LinhaCurvaAbc, ClasseAbc } from '@shared/types'
+import type {
+  RelatorioVendas,
+  LinhaCurvaAbc,
+  ClasseAbc,
+  MediaDiariaProduto,
+} from '@shared/types'
 import type { RelatorioVendasFiltro } from '@shared/ipc'
+import { diasNoPeriodo } from '@shared/periodo'
 
 // Constrói a cláusula de período/operador reutilizada por todas as agregações.
 // `ate` é estendido para o fim do dia (criado_em é ISO-8601, comparação lexicográfica).
@@ -15,6 +21,9 @@ function condicoes(filtro: RelatorioVendasFiltro) {
   if (filtro.usuarioId) conds.push(eq(vendas.usuarioId, filtro.usuarioId))
   return and(...conds)
 }
+
+
+
 
 export const relatoriosRepo = {
   async vendas(filtro: RelatorioVendasFiltro): Promise<RelatorioVendas> {
@@ -123,5 +132,34 @@ export const relatoriosRepo = {
       acumulado += percentual
       return { ...l, percentual, percentualAcumulado: acumulado, classe }
     })
+  },
+  /**
+   * Média de venda diária por produto no período (RF-18).
+   *
+   * Serve ao painel para dizer **quantos dias de estoque restam**. "Arroz: 8
+   * unidades" não diz nada; "Arroz: 8 unidades, ~2 dias" diz quando comprar.
+   *
+   * Produto sem venda no período simplesmente não aparece na lista — quem
+   * consome trata como "sem histórico" em vez de dividir por zero.
+   *
+   * Devolve array, não Map: o alvo web serializa em JSON, e Map viraria `{}`.
+   */
+  async mediaDiariaPorProduto(de: string, ate: string): Promise<MediaDiariaProduto[]> {
+    const db = getDb()
+    const dias = diasNoPeriodo(de, ate)
+
+    const linhas = await db
+      .select({
+        produtoId: vendaItens.produtoId,
+        quantidade: sql<number>`coalesce(sum(${vendaItens.quantidade}), 0)`,
+      })
+      .from(vendaItens)
+      .innerJoin(vendas, eq(vendaItens.vendaId, vendas.id))
+      .where(condicoes({ de, ate }))
+      .groupBy(vendaItens.produtoId)
+
+    return linhas
+      .filter((l) => l.quantidade > 0)
+      .map((l) => ({ produtoId: l.produtoId, mediaDiaria: l.quantidade / dias }))
   },
 }

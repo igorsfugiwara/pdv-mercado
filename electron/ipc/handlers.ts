@@ -365,6 +365,9 @@ export function registerIpc(dataDir: string) {
   ipcMain.handle(IPC.relatorios.vendas, (_e, filtro: RelatorioVendasFiltro) =>
     relatoriosRepo.vendas(filtro),
   )
+  ipcMain.handle(IPC.relatorios.mediaDiariaProdutos, (_e, de: string, ate: string) =>
+    relatoriosRepo.mediaDiariaPorProduto(de, ate),
+  )
   ipcMain.handle(IPC.relatorios.curvaAbc, (_e, de: string, ate: string) =>
     relatoriosRepo.curvaAbc(de, ate),
   )

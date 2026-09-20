@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 
 const LINKS = [
+  { to: '/painel', label: 'Painel', perfis: ['admin', 'supervisor'] },
   { to: '/caixa', label: 'Caixa', atalho: 'F1', perfis: ['admin', 'supervisor', 'operador'] },
   {
     to: '/fechamento',

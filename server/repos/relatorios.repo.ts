@@ -1,8 +1,9 @@
 import { and, gte, lte, eq, sql, desc } from 'drizzle-orm'
 import { getDb } from '../db'
 import { vendas, vendaItens, vendaPagamentos, produtos, grupos, usuarios } from '../schema.pg'
-import type { RelatorioVendas, LinhaCurvaAbc, ClasseAbc } from '@shared/types'
+import type { RelatorioVendas, LinhaCurvaAbc, ClasseAbc , MediaDiariaProduto } from '@shared/types'
 import type { RelatorioVendasFiltro } from '@shared/ipc'
+import { diasNoPeriodo } from '@shared/periodo'
 
 // Constrói a cláusula de período/operador reutilizada por todas as agregações.
 // `ate` é estendido para o fim do dia (criado_em é ISO-8601, comparação lexicográfica).
@@ -138,5 +139,24 @@ export const relatoriosRepo = {
       acumulado += percentual
       return { ...l, percentual, percentualAcumulado: acumulado, classe }
     })
+  },
+  /** Espelho de `mediaDiariaPorProduto` do desktop (RF-18). */
+  async mediaDiariaPorProduto(de: string, ate: string): Promise<MediaDiariaProduto[]> {
+    const db = getDb()
+    const dias = diasNoPeriodo(de, ate)
+
+    const linhas = await db
+      .select({
+        produtoId: vendaItens.produtoId,
+        quantidade: sql<number>`coalesce(sum(${vendaItens.quantidade}), 0)`,
+      })
+      .from(vendaItens)
+      .innerJoin(vendas, eq(vendaItens.vendaId, vendas.id))
+      .where(condicoes({ de, ate }))
+      .groupBy(vendaItens.produtoId)
+
+    return linhas
+      .filter((l) => Number(l.quantidade) > 0)
+      .map((l) => ({ produtoId: l.produtoId, mediaDiaria: Number(l.quantidade) / dias }))
   },
 }

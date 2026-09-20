@@ -19,6 +19,7 @@ import type {
   ModoFalhaFiscal,
   RelatorioVendas,
   LinhaCurvaAbc,
+  MediaDiariaProduto,
 } from './types'
 
 export interface LoginResult {
@@ -143,6 +144,8 @@ export interface PdvApi {
   relatorios: {
     vendas(filtro: RelatorioVendasFiltro): Promise<RelatorioVendas>
     curvaAbc(de: string, ate: string): Promise<LinhaCurvaAbc[]>
+    /** Giro médio diário por produto (RF-18) — base do "dias restantes" no painel. */
+    mediaDiariaProdutos(de: string, ate: string): Promise<MediaDiariaProduto[]>
     exportarCsv(dados: unknown[], nomeArquivo: string): Promise<{ caminho: string }>
   }
   hardware: {
@@ -224,6 +227,7 @@ export const IPC = {
   relatorios: {
     vendas: 'relatorios:vendas',
     curvaAbc: 'relatorios:curvaAbc',
+    mediaDiariaProdutos: 'relatorios:mediaDiariaProdutos',
     exportarCsv: 'relatorios:exportarCsv',
   },
   hardware: {

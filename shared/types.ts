@@ -266,6 +266,16 @@ export interface EstadoFiscal {
   modoFalha: ModoFalhaFiscal
 }
 
+/**
+ * Giro médio diário de um produto (RF-18). Só produtos COM venda no período
+ * aparecem — sem histórico é ausência, não zero, e é o que evita dividir por
+ * zero ao estimar dias restantes de estoque.
+ */
+export interface MediaDiariaProduto {
+  produtoId: number
+  mediaDiaria: number
+}
+
 // ---- Relatórios (RF-22..25) ----
 
 export interface RelatorioVendas {

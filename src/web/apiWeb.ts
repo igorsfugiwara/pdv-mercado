@@ -180,6 +180,7 @@ export const apiWeb: PdvApi = {
   relatorios: {
     vendas: (filtro) => rpc(IPC.relatorios.vendas, filtro),
     curvaAbc: (de, ate) => rpc(IPC.relatorios.curvaAbc, de, ate),
+    mediaDiariaProdutos: (de, ate) => rpc(IPC.relatorios.mediaDiariaProdutos, de, ate),
     // Não passa pelo servidor: o dado já está na tela, vira download direto.
     exportarCsv: async (dados, nomeArquivo) => {
       baixarArquivo(nomeArquivo, toCsv(dados as Record<string, unknown>[]))

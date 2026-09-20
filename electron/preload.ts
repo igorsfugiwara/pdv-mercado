@@ -74,6 +74,7 @@ const api: PdvApi = {
   relatorios: {
     vendas: (filtro) => invoke(IPC.relatorios.vendas, filtro),
     curvaAbc: (de, ate) => invoke(IPC.relatorios.curvaAbc, de, ate),
+    mediaDiariaProdutos: (de, ate) => invoke(IPC.relatorios.mediaDiariaProdutos, de, ate),
     exportarCsv: (dados, nomeArquivo) => invoke(IPC.relatorios.exportarCsv, dados, nomeArquivo),
   },
   hardware: {

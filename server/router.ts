@@ -334,6 +334,8 @@ const handlers: Record<string, Handler> = {
 
   // ---- Relatórios (RF-22..25) ----
   [IPC.relatorios.vendas]: ([filtro]: [RelatorioVendasFiltro]) => relatoriosRepo.vendas(filtro),
+  [IPC.relatorios.mediaDiariaProdutos]: ([de, ate]: [string, string]) =>
+    relatoriosRepo.mediaDiariaPorProduto(de, ate),
   [IPC.relatorios.curvaAbc]: ([de, ate]: [string, string]) => relatoriosRepo.curvaAbc(de, ate),
   // exportarCsv é resolvido no navegador (download via Blob) — ver src/web/apiWeb.ts.
 
