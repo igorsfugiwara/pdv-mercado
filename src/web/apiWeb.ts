@@ -102,6 +102,7 @@ export const apiWeb: PdvApi = {
     listar: (incluirInativos) => rpc(IPC.produtos.listar, incluirInativos),
     buscar: (termo) => rpc(IPC.produtos.buscar, termo),
     obterPorEan: (ean) => rpc(IPC.produtos.obterPorEan, ean),
+    obterPorCodigoInterno: (codigo) => rpc(IPC.produtos.obterPorCodigoInterno, codigo),
     salvar: (input) => rpc(IPC.produtos.salvar, input),
     inativar: (id, usuarioId) => rpc(IPC.produtos.inativar, id, usuarioId),
     reativar: (id, usuarioId) => rpc(IPC.produtos.reativar, id, usuarioId),

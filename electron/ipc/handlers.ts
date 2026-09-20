@@ -128,6 +128,9 @@ export function registerIpc(dataDir: string) {
   )
   ipcMain.handle(IPC.produtos.buscar, (_e, termo: string) => produtosRepo.buscar(termo))
   ipcMain.handle(IPC.produtos.obterPorEan, (_e, ean: string) => produtosRepo.porEan(ean))
+  ipcMain.handle(IPC.produtos.obterPorCodigoInterno, (_e, codigo: string) =>
+    produtosRepo.porCodigoInterno(codigo),
+  )
   ipcMain.handle(IPC.produtos.listarGrupos, () => produtosRepo.listarGrupos())
 
   ipcMain.handle(IPC.produtos.salvar, async (_e, input: ProdutoInput) => {

@@ -74,6 +74,8 @@ export interface PdvApi {
     listar(incluirInativos?: boolean): Promise<Produto[]>
     buscar(termo: string): Promise<Produto[]>
     obterPorEan(ean: string): Promise<Produto | null>
+    /** Busca exata — é assim que a etiqueta de balança acha o produto (RF-03). */
+    obterPorCodigoInterno(codigo: string): Promise<Produto | null>
     salvar(input: ProdutoInput): Promise<Produto>
     inativar(id: number, usuarioId: number): Promise<void>
     reativar(id: number, usuarioId: number): Promise<void>
@@ -176,6 +178,7 @@ export const IPC = {
     listar: 'produtos:listar',
     buscar: 'produtos:buscar',
     obterPorEan: 'produtos:obterPorEan',
+    obterPorCodigoInterno: 'produtos:obterPorCodigoInterno',
     salvar: 'produtos:salvar',
     inativar: 'produtos:inativar',
     reativar: 'produtos:reativar',

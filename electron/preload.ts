@@ -21,6 +21,7 @@ const api: PdvApi = {
     listar: (incluirInativos) => invoke(IPC.produtos.listar, incluirInativos),
     buscar: (termo) => invoke(IPC.produtos.buscar, termo),
     obterPorEan: (ean) => invoke(IPC.produtos.obterPorEan, ean),
+    obterPorCodigoInterno: (codigo) => invoke(IPC.produtos.obterPorCodigoInterno, codigo),
     salvar: (input) => invoke(IPC.produtos.salvar, input),
     inativar: (id, usuarioId) => invoke(IPC.produtos.inativar, id, usuarioId),
     reativar: (id, usuarioId) => invoke(IPC.produtos.reativar, id, usuarioId),

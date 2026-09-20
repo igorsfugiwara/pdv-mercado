@@ -118,6 +118,8 @@ const handlers: Record<string, Handler> = {
   [IPC.produtos.listar]: ([incluirInativos]: [boolean?]) => produtosRepo.listar(incluirInativos),
   [IPC.produtos.buscar]: ([termo]: [string]) => produtosRepo.buscar(termo),
   [IPC.produtos.obterPorEan]: ([ean]: [string]) => produtosRepo.porEan(ean),
+  [IPC.produtos.obterPorCodigoInterno]: ([codigo]: [string]) =>
+    produtosRepo.porCodigoInterno(codigo),
   [IPC.produtos.listarGrupos]: () => produtosRepo.listarGrupos(),
 
   [IPC.produtos.salvar]: async ([input]: [ProdutoInput], ctx) => {

@@ -5,6 +5,15 @@ import { useAuthStore } from '../store/authStore'
 import { useCarrinhoStore, FORMAS_PAGAMENTO } from '../store/carrinhoStore'
 import { formatBRL } from '../lib/money'
 import {
+  lerEtiquetaBalanca,
+  quantidadePorValor,
+  quantidadeExibida,
+  CONFIG_BALANCA_PADRAO,
+  CHAVES_BALANCA,
+  type ConfigBalanca,
+  type LayoutBalanca,
+} from '@shared/eanBalanca'
+import {
   exigeAutorizacao,
   descontoParaBps,
   formatarBps,
@@ -31,6 +40,7 @@ export default function CaixaScreen() {
   const dlg = useDialogos()
   const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
   const [limites, setLimites] = useState<LimitesDesconto>(LIMITES_PADRAO)
+  const [cfgBalanca, setCfgBalanca] = useState<ConfigBalanca>(CONFIG_BALANCA_PADRAO)
 
   // Limites de desconto por perfil (RF-05). O main reconfere na autorização —
   // isto aqui decide só se a tela pede PIN.
@@ -44,6 +54,13 @@ export default function CaixaScreen() {
         operador: ler(CHAVES_LIMITE.operador, LIMITES_PADRAO.operador),
         supervisor: ler(CHAVES_LIMITE.supervisor, LIMITES_PADRAO.supervisor),
         admin: ler(CHAVES_LIMITE.admin, LIMITES_PADRAO.admin),
+      })
+
+      const layout = c[CHAVES_BALANCA.layout]
+      setCfgBalanca({
+        prefixo: c[CHAVES_BALANCA.prefixo] || CONFIG_BALANCA_PADRAO.prefixo,
+        layout: (layout === 'valor' ? 'valor' : 'peso') as LayoutBalanca,
+        digitosCodigo: ler(CHAVES_BALANCA.digitosCodigo, CONFIG_BALANCA_PADRAO.digitosCodigo),
       })
     })
   }, [])
@@ -99,14 +116,75 @@ export default function CaixaScreen() {
       return
     }
 
+    // Precedência: EAN cadastrado ganha da interpretação como etiqueta. Um
+    // EAN-13 legítimo pode começar com 2 — cadastro errado acontece, e assim o
+    // comportamento é previsível e nada que já funcionava quebra.
     const produto = await window.api.produtos.obterPorEan(texto)
     if (produto) {
       adicionar(produto)
-    } else {
-      const encontrados = await window.api.produtos.buscar(texto)
-      if (encontrados.length === 1) adicionar(encontrados[0])
-      else avisar(`Nenhum produto para "${texto}". Use F2 para buscar.`)
+      return
     }
+
+    if (await tentarEtiquetaBalanca(texto)) return
+
+    const encontrados = await window.api.produtos.buscar(texto)
+    if (encontrados.length === 1) adicionar(encontrados[0])
+    else avisar(`Nenhum produto para "${texto}". Use F2 para buscar.`, 'erro')
+  }
+
+  /**
+   * Etiqueta de balança (RF-03): resolve produto E quantidade numa leitura só.
+   * Devolve true quando tratou o código — inclusive quando deu erro, porque aí
+   * já avisou e não faz sentido cair na busca por texto.
+   */
+  async function tentarEtiquetaBalanca(texto: string): Promise<boolean> {
+    const leitura = lerEtiquetaBalanca(texto, cfgBalanca)
+
+    if (!leitura.ok) {
+      if (leitura.motivo === 'nao-e-etiqueta') return false
+      if (leitura.motivo === 'dv-invalido') {
+        avisar('Código inválido — dígito verificador não confere. Bipe novamente.', 'erro')
+        return true
+      }
+      avisar('Etiqueta com peso/valor zerado.', 'erro')
+      return true
+    }
+
+    const { dado } = leitura
+    const produto = await window.api.produtos.obterPorCodigoInterno(dado.codigoProduto)
+    if (!produto) {
+      avisar(`Etiqueta de balança: nenhum produto com código interno ${dado.codigoProduto}.`, 'erro')
+      return true
+    }
+
+    // Etiqueta de balança em item unitário é erro de cadastro; aceitar mascara.
+    if (!produto.pesavel) {
+      avisar(`${produto.descricao} não é vendido por peso — confira o cadastro.`, 'erro')
+      return true
+    }
+
+    if (dado.tipo === 'peso') {
+      setSelecionado(cart.adicionarProduto(produto, { peso: dado.peso }))
+      avisar(`+ ${produto.descricao} (${dado.peso} kg)`, 'sucesso')
+      return true
+    }
+
+    // Layout valor: a etiqueta é a fonte da verdade do TOTAL. A quantidade é
+    // derivada só para exibição — recalcular o total a partir dela faria o
+    // cupom divergir em centavos da etiqueta que o cliente tem na mão.
+    const quantidade = quantidadePorValor(dado.valor, produto.precoVenda)
+    if (quantidade <= 0) {
+      avisar(`${produto.descricao} sem preço cadastrado — não dá para derivar o peso.`, 'erro')
+      return true
+    }
+    // Guarda a razão exata: `round(preço × quantidade)` devolve então o valor
+    // impresso na etiqueta, ao centavo. O arredondamento fica só na exibição.
+    setSelecionado(cart.adicionarProduto(produto, { peso: quantidade }))
+    avisar(
+      `+ ${produto.descricao} (${quantidadeExibida(quantidade)} kg · ${formatBRL(dado.valor)})`,
+      'sucesso',
+    )
+    return true
   }
 
   function adicionar(p: Produto) {

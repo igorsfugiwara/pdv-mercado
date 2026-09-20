@@ -55,6 +55,13 @@ export const produtosRepo = {
     return (row as Produto) ?? null
   },
 
+  /** Espelho de `porCodigoInterno` do desktop — mesma etiqueta, mesmo contrato. */
+  async porCodigoInterno(codigo: string): Promise<Produto | null> {
+    const db = getDb()
+    const [row] = await db.select().from(produtos).where(eq(produtos.codigoInterno, codigo))
+    return (row as Produto) ?? null
+  },
+
   async salvar(input: ProdutoInput): Promise<Produto> {
     const db = getDb()
     const agora = new Date().toISOString()

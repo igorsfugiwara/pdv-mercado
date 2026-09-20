@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { formatBRL, parseBRL } from '../src/lib/money'
 import { validarCpf } from '../src/lib/cpf'
-import { parseEanBalanca } from '../electron/hardware/balanca'
+import { lerEtiquetaBalanca } from '../shared/eanBalanca'
 import { validarFinalizacao, totalVenda } from '../shared/vendaValidacao'
 import type { FinalizarVendaInput } from '../shared/types'
 
@@ -28,17 +28,20 @@ describe('CPF (RF-08)', () => {
 })
 
 describe('EAN de balança (RF-03)', () => {
+  // Os DVs abaixo foram corrigidos na fatia 05: as etiquetas usadas antes aqui
+  // tinham dígito verificador inválido e passavam porque nada os conferia.
   it('layout código+peso (prefixo 2)', () => {
-    // 2 | 12345 | 001500 (1,5kg em gramas) | DV
-    const r = parseEanBalanca('2123450015007', 'peso')
-    expect(r).toEqual({ codigoProduto: '12345', peso: 1.5 })
+    // 2 | 12345 | 001500 (1,5 kg em gramas) | DV 9
+    const r = lerEtiquetaBalanca('2123450015009', { prefixo: '2', layout: 'peso', digitosCodigo: 5 })
+    expect(r).toEqual({ ok: true, dado: { tipo: 'peso', codigoProduto: '12345', peso: 1.5 } })
   })
   it('layout código+valor', () => {
-    const r = parseEanBalanca('2123450012349', 'valor')
-    expect(r).toEqual({ codigoProduto: '12345', valor: 1234 })
+    const r = lerEtiquetaBalanca('2123450012343', { prefixo: '2', layout: 'valor', digitosCodigo: 5 })
+    expect(r).toEqual({ ok: true, dado: { tipo: 'valor', codigoProduto: '12345', valor: 1234 } })
   })
-  it('ignora EAN sem prefixo 2', () => {
-    expect(parseEanBalanca('7891000100103', 'peso')).toBeNull()
+  it('ignora EAN sem o prefixo de balança', () => {
+    const r = lerEtiquetaBalanca('7891000100103')
+    expect(r).toEqual({ ok: false, motivo: 'nao-e-etiqueta' })
   })
 })
 

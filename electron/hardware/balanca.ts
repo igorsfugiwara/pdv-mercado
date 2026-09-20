@@ -97,18 +97,19 @@ export function parsePeso(
 }
 
 /**
- * EAN-13 de balança (prefixo 2): layouts código+peso e código+valor (RF-03).
- * Retorna o código do produto e peso (kg) ou valor (centavos), conforme layout.
+ * EAN-13 de balança — reexporta o parser compartilhado.
+ *
+ * O parsing é puro e vive em `shared/eanBalanca.ts` porque o renderer precisa
+ * dele para decidir o fluxo do caixa; o módulo de hardware não é dono da regra,
+ * só consumidor. Mesmo caminho já feito com `vendaValidacao` e `csvProdutos`.
  */
-export function parseEanBalanca(
-  ean: string,
-  layout: 'peso' | 'valor',
-): { codigoProduto: string; peso?: number; valor?: number } | null {
-  if (ean.length !== 13 || ean[0] !== '2') return null
-  const codigoProduto = ean.slice(1, 6)
-  const dados = ean.slice(6, 12) // 6 dígitos de peso/valor + DV na posição 12
-  if (layout === 'peso') {
-    return { codigoProduto, peso: parseInt(dados, 10) / 1000 } // gramas → kg
-  }
-  return { codigoProduto, valor: parseInt(dados, 10) } // centavos
-}
+export {
+  lerEtiquetaBalanca,
+  quantidadePorValor,
+  quantidadeExibida,
+  eanValido,
+  dvEan13,
+  CONFIG_BALANCA_PADRAO,
+  type ConfigBalanca,
+  type LayoutBalanca,
+} from '@shared/eanBalanca'

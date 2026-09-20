@@ -87,6 +87,24 @@ export default function ConfigScreen() {
 
         <section className="card">
           <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">
+            Etiqueta de balança (RF-03)
+          </h2>
+          <div className="space-y-3">
+            <CampoConfig chave="balanca.ean.prefixo" label="Prefixo do EAN interno" config={config} onSalvar={salvar} placeholder="2" />
+            <CampoConfig chave="balanca.ean.layout" label="Layout (peso | valor)" config={config} onSalvar={salvar} placeholder="peso" />
+            <CampoConfig chave="balanca.ean.digitosCodigo" label="Dígitos do código interno" config={config} onSalvar={salvar} placeholder="5" />
+          </div>
+          <p className="mt-2 text-xs text-text-muted">
+            <strong>peso</strong>: os dígitos finais são gramas (01500 = 1,500 kg).
+            <strong> valor</strong>: são centavos (01290 = R$ 12,90), e o peso é derivado
+            do preço — o total do item fica igual ao impresso na etiqueta.
+            O número de dígitos do código varia por fabricante da balança.
+            Padrão: prefixo 2, layout peso, 5 dígitos.
+          </p>
+        </section>
+
+        <section className="card">
+          <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">
             Limites de desconto (RF-05)
           </h2>
           <div className="space-y-3">

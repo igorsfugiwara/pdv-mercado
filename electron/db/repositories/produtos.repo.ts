@@ -53,6 +53,19 @@ export const produtosRepo = {
     return (row as Produto) ?? null
   },
 
+  /**
+   * Busca exata por código interno — é como a etiqueta de balança identifica o
+   * produto. `buscar()` faria varredura por texto: impreciso e lento para um bip.
+   */
+  async porCodigoInterno(codigo: string): Promise<Produto | null> {
+    const db = getDb()
+    const [row] = await db
+      .select()
+      .from(produtos)
+      .where(eq(produtos.codigoInterno, codigo))
+    return (row as Produto) ?? null
+  },
+
   async salvar(input: ProdutoInput): Promise<Produto> {
     const db = getDb()
     const agora = new Date().toISOString()
