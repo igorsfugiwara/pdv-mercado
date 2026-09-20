@@ -77,6 +77,18 @@ primeiro porque sem ela não dá para exercitar nenhuma das outras ponta a ponta
 | **06** ✅ | [Painel e Estoque Mínimo](06%20-%20Painel%20e%20Estoque%20Mínimo.md) | Tela inicial com o estado do turno e os alertas que exigem ação. | 04 |
 | **07** ✅ | [Aceite Ponta a Ponta](07%20-%20Aceite%20Ponta%20a%20Ponta.md) | O critério 9.4 do PRD original virado em teste E2E que roda no CI. | 03, 04, 05 |
 
+### Segunda rodada
+
+A primeira rodada fechou o operacional. Esta ataca o que sobrou de regra pronta
+sem caminho na tela, e o que só aparece com o sistema em uso por dias.
+
+| Fatia | PRD | Entrega | Depende de |
+|---|---|---|---|
+| **08** | [Cancelamento de Venda Finalizada](08%20-%20Cancelamento%20de%20Venda%20Finalizada.md) | Achar uma venda, cancelar com autorização, e cancelar a NFC-e junto. | 03, 07 |
+| **09** | [Relógio e Integridade Temporal](09%20-%20Relógio%20e%20Integridade%20Temporal.md) | O PDV percebe relógio errado antes de a SEFAZ recusar a nota. | 06 |
+| **10** | [Contingência com Prazo Visível](10%20-%20Contingência%20com%20Prazo%20Visível.md) | Documento parado escala com o tempo, em vez de envelhecer em silêncio. | 06 |
+| **11** | [Aceite da Versão Web](11%20-%20Aceite%20da%20Versão%20Web.md) | O roteiro da 07 rodando contra a web, mais teste de paridade de contrato. | 07 |
+
 ### Por que esta ordem
 
 A fatia **02** vem logo depois da 01 porque quase toda fatia seguinte precisa pedir algo
