@@ -52,7 +52,16 @@ export default defineConfig(async () => {
             resolve: { alias },
             build: {
               outDir: 'dist-electron',
-              rollupOptions: { external: nativeMainDeps },
+              rollupOptions: {
+                external: nativeMainDeps,
+                // O pacote é `"type": "module"`, então o plugin nomeia o preload
+                // como `.mjs` — e o Electron carrega `.mjs` como ES module. Sem
+                // forçar o formato aqui, o conteúdo sai em CommonJS (`require`)
+                // dentro de um arquivo ESM: o preload estoura com "require is
+                // not defined", `window.api` nunca aparece, e o renderer cai no
+                // adapter HTTP. Em dev o sintoma some; no app empacotado, não.
+                output: { format: 'es', entryFileNames: 'preload.mjs' },
+              },
             },
           },
         },

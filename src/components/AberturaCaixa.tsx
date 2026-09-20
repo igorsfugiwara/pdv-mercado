@@ -26,8 +26,13 @@ export default function AberturaCaixa() {
           <input
             className="input font-mono text-lg"
             autoFocus
+            aria-label="Fundo de troco"
             value={valor}
             onChange={(e) => setValor(e.target.value)}
+            // RF-10: o caixa abre sem tirar a mão do teclado.
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !ocupado) confirmar()
+            }}
           />
         </div>
         <button className="btn-primary w-full" onClick={confirmar} disabled={ocupado}>

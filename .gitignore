@@ -23,3 +23,7 @@ data/
 # Checklist pessoal de operação — o repositório é público por decisão,
 # e esta lista é de uso interno (acessos, credenciamento, passos manuais).
 docs/PENDENCIAS.md
+
+# Saída do Playwright
+test-results/
+playwright-report/

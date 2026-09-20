@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Sidebar from './components/Sidebar'
 import LoginScreen from './screens/LoginScreen'
@@ -11,6 +12,7 @@ import RelatoriosScreen from './screens/RelatoriosScreen'
 import FiscalScreen from './screens/FiscalScreen'
 import ConfigScreen from './screens/ConfigScreen'
 import { rotaInicial } from './lib/painel'
+import { dialogoAberto } from './components/Dialogo'
 
 export default function App() {
   const usuario = useAuthStore((s) => s.usuario)
@@ -18,6 +20,8 @@ export default function App() {
   if (!usuario) return <LoginScreen />
 
   return (
+    <>
+      <AtalhosGlobais />
     <div className="flex h-full">
       <Sidebar />
       <main className="flex-1 overflow-auto bg-bg">
@@ -36,5 +40,30 @@ export default function App() {
         </Routes>
       </main>
     </div>
+    </>
   )
+}
+
+/**
+ * Atalhos de navegação (RF-10). O menu lateral anuncia `F1` para o caixa — sem
+ * este handler o rótulo era promessa vazia, e voltar ao caixa exigia o mouse.
+ */
+function AtalhosGlobais() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      // Diálogo aberto consome o teclado: navegar por baixo dele deixaria a
+      // pergunta pendente numa tela que não existe mais.
+      if (dialogoAberto()) return
+      if (e.key === 'F1') {
+        e.preventDefault()
+        navigate('/caixa')
+      }
+    }
+    window.addEventListener('keydown', aoTeclar)
+    return () => window.removeEventListener('keydown', aoTeclar)
+  }, [navigate])
+
+  return null
 }

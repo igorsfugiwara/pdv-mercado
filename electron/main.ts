@@ -10,8 +10,17 @@ import { backupAgora } from './services/backup'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Diretórios de runtime em userData (seção 2.1). Nunca versionados.
-const DATA_DIR = join(app.getPath('userData'), 'data')
+/**
+ * Diretórios de runtime em userData (seção 2.1). Nunca versionados.
+ *
+ * `PDV_DATA_DIR` existe para o teste E2E rodar contra um banco descartável.
+ * Sem isso, o teste usaria o banco de desenvolvimento: passaria na máquina de
+ * quem escreveu e falharia no CI — ou, pior, apagaria o banco de quem estava
+ * trabalhando.
+ */
+const DATA_DIR = process.env.PDV_DATA_DIR
+  ? join(process.env.PDV_DATA_DIR, 'data')
+  : join(app.getPath('userData'), 'data')
 const DB_PATH = join(DATA_DIR, 'pdv.db')
 // Em produção as migrations vão empacotadas; em dev, lidas do source.
 const MIGRATIONS_DIR = app.isPackaged

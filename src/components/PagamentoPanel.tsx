@@ -22,6 +22,39 @@ export default function PagamentoPanel({
   const restante = total - pago
   const troco = Math.max(0, pago - total)
 
+  /**
+   * RF-10: o pagamento inteiro por teclado.
+   *
+   * Alt+1..5 lança a forma correspondente (a ordem é a da lista), Enter
+   * finaliza quando não falta valor, Esc fecha. Sem isto o operador precisa do
+   * mouse justamente no passo mais repetido do dia.
+   */
+  function aoTeclar(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      onFechar()
+      return
+    }
+    if (e.altKey && /^[1-9]$/.test(e.key)) {
+      const escolhida = formas[Number(e.key) - 1]
+      if (escolhida) {
+        e.preventDefault()
+        adicionar(escolhida.forma)
+      }
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // Enter com valor digitado e nada lançado ainda: assume dinheiro, que é
+      // o caso esmagadoramente mais comum.
+      if (pagamentos.length === 0) {
+        adicionar(formas[0].forma)
+        return
+      }
+      if (restante <= 0) onConfirmar(pagamentos, emitirNfce)
+    }
+  }
+
   function adicionar(forma: FormaPagamento) {
     const v = valor ? parseBRL(valor) : Math.max(0, restante)
     if (v <= 0) return
@@ -30,7 +63,11 @@ export default function PagamentoPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/60" onClick={onFechar}>
+    <div
+      className="fixed inset-0 z-20 flex items-center justify-center bg-black/60"
+      onClick={onFechar}
+      onKeyDown={aoTeclar}
+    >
       <div className="card w-[560px] space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-baseline justify-between">
           <h2 className="font-display text-2xl text-primary">Pagamento</h2>
@@ -46,9 +83,10 @@ export default function PagamentoPanel({
         />
 
         <div className="grid grid-cols-3 gap-2">
-          {formas.map((f) => (
+          {formas.map((f, i) => (
             <button key={f.forma} className="btn-ghost" onClick={() => adicionar(f.forma)}>
               {f.label}
+              <span className="ml-1 text-xs text-text-muted">Alt+{i + 1}</span>
             </button>
           ))}
         </div>
@@ -92,7 +130,7 @@ export default function PagamentoPanel({
             disabled={restante > 0}
             onClick={() => onConfirmar(pagamentos, emitirNfce)}
           >
-            Finalizar
+            Finalizar <span className="text-xs opacity-70">(Enter)</span>
           </button>
         </div>
       </div>

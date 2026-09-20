@@ -95,13 +95,27 @@ export default function CaixaScreen() {
     })()
   }, [cart, carregarEspera])
 
+  /**
+   * Mantém o foco no campo de captura — é o que faz o bipe seguinte funcionar
+   * sem ninguém tocar em nada.
+   *
+   * A guarda de `dialogoAberto()` é essencial: o campo tem `onBlur` que chama
+   * esta função, então sem ela o diálogo que acabou de abrir perde o foco para
+   * o campo de captura no mesmo instante, e o operador digita peso, PIN ou
+   * desconto dentro do campo de bipe. Os diálogos da fatia 02 ficavam
+   * inutilizáveis na tela real sem que nenhum teste de componente notasse.
+   */
   const focarCaptura = useCallback(() => {
-    if (!busca && !pagamento) capturaRef.current?.focus()
+    if (!busca && !pagamento && !dialogoAberto()) capturaRef.current?.focus()
   }, [busca, pagamento])
 
+  // `caixa` entra nas deps de propósito: enquanto ele é null a tela renderiza
+  // <AberturaCaixa /> e o campo de captura nem existe, então o focus() do
+  // primeiro efeito cai no vazio. Sem esta dependência o campo só ganhava foco
+  // no primeiro item lançado — e o primeiro bipe do turno se perdia.
   useEffect(() => {
     focarCaptura()
-  }, [focarCaptura, cart.itens.length])
+  }, [focarCaptura, cart.itens.length, caixa])
 
   // RF-01: processa o "bip" (EAN + Enter) e multiplicador (RF-04: "3 *").
   async function processarCaptura() {
@@ -151,7 +165,15 @@ export default function CaixaScreen() {
     }
 
     const { dado } = leitura
-    const produto = await window.api.produtos.obterPorCodigoInterno(dado.codigoProduto)
+    // A etiqueta codifica o PLU com largura fixa ("2001" vira "02001"), mas o
+    // cadastro guarda o código como foi digitado. Tenta o código como veio e,
+    // se não achar, sem os zeros à esquerda.
+    const semZeros = dado.codigoProduto.replace(/^0+/, '')
+    const produto =
+      (await window.api.produtos.obterPorCodigoInterno(dado.codigoProduto)) ??
+      (semZeros && semZeros !== dado.codigoProduto
+        ? await window.api.produtos.obterPorCodigoInterno(semZeros)
+        : null)
     if (!produto) {
       avisar(`Etiqueta de balança: nenhum produto com código interno ${dado.codigoProduto}.`, 'erro')
       return true

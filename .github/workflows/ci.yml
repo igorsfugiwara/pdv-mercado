@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Os módulos nativos (better-sqlite3, argon2) compilam do fonte aqui.
+      - name: Dependências do sistema
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3
+
+      - run: npm ci
+
+      # Depois disto os binários nativos são da ABI do Electron — é o que faz
+      # `npm test` rodar sob o Node do Electron (ver README).
+      - name: Reconstruir módulos nativos para o Electron
+        run: npx electron-rebuild -f
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes (vitest)
+        run: npm test
+
+      - name: Offline (RNF-06)
+        run: npm run check:offline
+
+      - name: Build do alvo desktop
+        run: npx vite build
+
+      # Electron precisa de display virtual no Linux. O `--no-sandbox` do
+      # launcher cobre a ausência do helper SUID no runner.
+      - name: E2E (Playwright + Electron)
+        run: xvfb-run -a npm run test:e2e
+
+      # Só do que falhou: artefato de execução verde é lixo que enche o storage.
+      - name: Artefatos da falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-falhas
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
