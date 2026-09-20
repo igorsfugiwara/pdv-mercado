@@ -38,7 +38,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 - **Relatórios** — vendas por período/forma/operador/produto/grupo e curva ABC, com as
   agregações testadas.
 - **Auth argon2id + PIN**, auditoria append-only.
-- **87 testes passando**, incluindo 27 contra Postgres real (PGlite).
+- **150 testes passando**, incluindo 27 contra Postgres real (PGlite).
 
 ### O que impede o operacional de ser impecável
 
@@ -50,7 +50,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 | 4 | **Desconto sem limite por perfil (RF-05).** `pedirDescontoVenda()` aceita qualquer valor de qualquer operador, sem autorização. Não há desconto por item na UI, embora o tipo suporte. | `CaixaScreen.tsx:155` | **03** |
 | 5 | **Cancelamento de item sem autorização (RF-06)** e só do último item — não dá para cancelar um item no meio da compra. | `CaixaScreen.tsx:161` | **03** |
 | 6 | **Sem painel de abertura** — o alerta de estoque mínimo (RF-18) não tem onde aparecer. `estoque.alertasMinimo()` existe e ninguém consome no lugar certo. | não há `DashboardScreen` | **06** |
-| 7 | **Fiscal do desktop só instancia `AcbrNfceProvider`.** Sem a lib nativa e o certificado, o módulo fiscal não inicializa — ou seja, hoje não dá para rodar o app inteiro numa máquina de teste. | `electron/fiscal/index.ts:13` | **01** |
+| 7 | ~~**Fiscal do desktop só instancia `AcbrNfceProvider`.**~~ **Resolvido na fatia 01.** Sem a lib nativa e o certificado, o módulo fiscal não inicializa — ou seja, hoje não dá para rodar o app inteiro numa máquina de teste. | `electron/fiscal/index.ts:13` | **01** |
 | 8 | **Busca sem debounce** — dispara uma consulta por tecla digitada. | `src/components/BuscaProdutos.tsx:23` | **02** |
 | 9 | **Detecção de bipe por velocidade não existe (RF-01).** O PRD pede detecção por cadência de digitação *além* do sufixo Enter; a captura só reage ao Enter. Efeito prático hoje é benigno — digitar e bipar são equivalentes, o que ajuda o teste em VM — mas o requisito está aberto. | `src/screens/CaixaScreen.tsx`, `onKeyDown` do campo de captura | **02** |
 
@@ -69,7 +69,7 @@ primeiro porque sem ela não dá para exercitar nenhuma das outras ponta a ponta
 
 | Fatia | PRD | Entrega | Depende de |
 |---|---|---|---|
-| **01** | [Fiscal Simulado e Ambiente de Teste](01%20-%20Fiscal%20Simulado%20e%20Ambiente%20de%20Teste.md) | App sobe e vende sem ACBrLib, certificado ou periférico. Provider fiscal escolhido por configuração. | — |
+| **01** ✅ | [Fiscal Simulado e Ambiente de Teste](01%20-%20Fiscal%20Simulado%20e%20Ambiente%20de%20Teste.md) | App sobe e vende sem ACBrLib, certificado ou periférico. Provider fiscal escolhido por configuração. | — |
 | **02** | [Diálogos do Caixa](02%20-%20Diálogos%20do%20Caixa.md) | Todo `prompt/alert/confirm` vira diálogo próprio, operável por teclado, sem travar a thread. | 01 |
 | **03** | [Autorização e Limites](03%20-%20Autorização%20e%20Limites.md) | Limite de desconto por perfil, autorização por PIN acima do limite, cancelamento de item arbitrário — tudo auditado. | 02 |
 | **04** ✅ | [Fechamento de Caixa](04%20-%20Fechamento%20de%20Caixa.md) | Conferência cega, apuração de diferença, comprovante do turno. Fecha o ciclo abertura→fechamento. | — |
@@ -86,6 +86,13 @@ construir duas vezes: uma no diálogo nativo, outra quando ele for substituído.
 
 A **07** vem por último de propósito: o teste de aceite só é honesto quando existe o
 fluxo inteiro para exercitar.
+
+> **Nota de execução (fatia 01, entregue):** o `AcbrNfceProvider.inicializar()` não
+> lança quando a ACBrLib está ausente — entra em modo esqueleto de propósito, para nunca
+> simular emissão falsa. Aceitar isso como provider ativo faria o app anunciar fiscal real
+> e quebrar na primeira venda, então `initFiscal` agora exige `acbr.operacional` e trata
+> esqueleto como fallback para simulado. O critério de aceite do PRD virou
+> `tests/fiscal-aceite.test.ts`, com banco em arquivo e `initFiscal()` sem configuração.
 
 > **Nota de execução (fatia 04, entregue):** ela dependia da 02 no papel, mas na prática
 > não precisou — o fechamento virou uma tela multi-etapa com formulário inline em vez de
