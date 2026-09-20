@@ -1,4 +1,5 @@
 import log from 'electron-log'
+import type { DocumentoFiscal } from '@shared/types'
 import type { FiscalProvider } from './FiscalProvider'
 import { fiscalRepo } from '../db/repositories/fiscal.repo'
 
@@ -14,6 +15,7 @@ const LIMITE_ALERTA_MS = 24 * 60 * 60 * 1000
 export class ContingenciaQueue {
   private timer: NodeJS.Timeout | null = null
   private tentativas = 0
+  private avisouTeto = false
   private processando = false
 
   constructor(
@@ -60,6 +62,8 @@ export class ContingenciaQueue {
               chaveAcesso: r.chave,
               protocolo: r.protocolo,
               autorizadaEm: new Date().toISOString(),
+              // Deu certo: o diagnóstico da falha anterior deixa de valer.
+              ultimoErro: null,
             })
             processados++
           } else if (r.status === 'rejeitada') {
@@ -69,11 +73,15 @@ export class ContingenciaQueue {
             })
             processados++
           } else {
-            // Ainda em contingência: mantém pendente e checa o prazo de 24h.
+            // Ainda em contingência: mantém pendente, registra por quê e checa
+            // o prazo. Sem o motivo gravado, o operador vê "N pendentes" e não
+            // sabe se espera a SEFAZ voltar ou se precisa agir.
+            await this.registrarFalha(doc, 'SEFAZ ainda não autorizou o documento.')
             this.verificarPrazoAlerta(doc.emitidaEm)
           }
         } catch (e) {
           log.error('[contingencia] falha ao reprocessar doc', doc.id, e)
+          await this.registrarFalha(doc, e instanceof Error ? e.message : String(e))
         }
       }
       this.tentativas = processados > 0 ? 0 : this.tentativas + 1
@@ -81,10 +89,33 @@ export class ContingenciaQueue {
       this.processando = false
       if (!manual) {
         const backoff = Math.min(INTERVALO_BASE_MS * 2 ** this.tentativas, MAX_BACKOFF_MS)
+        // Ao chegar no teto, a fila continuava tentando em silêncio. Avisa uma
+        // vez: ficar quieto é o que faz documento envelhecer sem ninguém ver.
+        if (backoff >= MAX_BACKOFF_MS && !this.avisouTeto) {
+          this.avisouTeto = true
+          this.onAlerta?.(
+            'A fila de contingência não consegue transmitir há bastante tempo. Verifique a conexão e o monitor fiscal.',
+          )
+        }
+        if (backoff < MAX_BACKOFF_MS) this.avisouTeto = false
         this.agendar(backoff)
       }
     }
     return processados
+  }
+
+  /** Guarda a última falha no próprio documento, não só no log do main. */
+  private async registrarFalha(doc: DocumentoFiscal, motivo: string) {
+    try {
+      await fiscalRepo.atualizarStatus(doc.id, {
+        ultimoErro: motivo,
+        ultimaTentativaEm: new Date().toISOString(),
+        tentativas: (doc.tentativas ?? 0) + 1,
+      })
+    } catch (e) {
+      // Registrar diagnóstico nunca pode derrubar a fila.
+      log.error('[contingencia] falha ao registrar diagnóstico', e)
+    }
   }
 
   private verificarPrazoAlerta(emitidaEm: string | null) {

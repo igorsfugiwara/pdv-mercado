@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Caixa, Produto, RelatorioVendas } from '@shared/types'
 import { formatBRL } from '../lib/money'
+import { CHAVE_PRAZO_CONTINGENCIA, PRAZO_CONTINGENCIA_HORAS } from '@shared/contingencia'
 import {
   montarAlertas,
   estimarDiasRestantes,
@@ -56,12 +57,23 @@ export default function PainelScreen() {
       api.caixa.atual(),
     ])
 
-    const [emEspera, relHoje, medias, relogio] = await Promise.all([
+    const [emEspera, relHoje, medias, relogio, prazoBruto] = await Promise.all([
       api.vendas.recuperarEspera(),
       api.relatorios.vendas({ de: hoje, ate: hoje }),
       api.relatorios.mediaDiariaProdutos(diasAtras(30), hoje),
       api.relogio.verificar(),
+      api.config.obter(CHAVE_PRAZO_CONTINGENCIA),
     ])
+
+    const prazo = Number(prazoBruto)
+    const prazoContingenciaHoras =
+      Number.isFinite(prazo) && prazo > 0 ? prazo : PRAZO_CONTINGENCIA_HORAS
+
+    // O erro do documento mais antigo: "SEFAZ indisponível" e "chave duplicada"
+    // pedem ações diferentes, e antes isso só existia no log do main.
+    const maisAntigo = [...contingencia].sort((a, b) =>
+      (a.emitidaEm ?? '').localeCompare(b.emitidaEm ?? ''),
+    )[0]
 
     const inativosPorFiscal = todosProdutos.filter(
       (p: Produto) => !p.ativo && (!p.ncm || !p.cfop || !p.origem || !p.csosn),
@@ -78,6 +90,8 @@ export default function PainelScreen() {
         caixa,
         emEspera,
         relogio,
+        prazoContingenciaHoras,
+        motivoContingencia: maisAntigo?.ultimoErro ?? null,
       }),
       estoque: estimarDiasRestantes(estoqueMinimo, medias),
       caixa,

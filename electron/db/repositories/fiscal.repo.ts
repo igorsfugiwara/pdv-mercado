@@ -29,6 +29,9 @@ export const fiscalRepo = {
         | 'motivoRejeicao'
         | 'autorizadaEm'
         | 'canceladaEm'
+        | 'ultimoErro'
+        | 'ultimaTentativaEm'
+        | 'tentativas'
       >
     >,
   ) {

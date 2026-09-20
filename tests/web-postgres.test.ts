@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -35,8 +35,12 @@ beforeAll(async () => {
   const db = drizzle(client, { schema })
   setDbParaTestes(db)
 
-  const ddl = readFileSync(join(process.cwd(), 'server/migrations/0000_init.sql'), 'utf-8')
-  await client.exec(ddl)
+  // Todas as migrações, em ordem — não só a inicial: uma migração nova
+  // aplicada apenas no desktop deixaria o espelho web para trás.
+  const dirMig = join(process.cwd(), 'server/migrations')
+  for (const nome of readdirSync(dirMig).filter((n) => n.endsWith('.sql')).sort()) {
+    await client.exec(readFileSync(join(dirMig, nome), 'utf-8'))
+  }
 
   repos = {
     produtosRepo: (await import('../server/repos/produtos.repo')).produtosRepo,

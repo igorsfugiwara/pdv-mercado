@@ -1,5 +1,11 @@
 import type { Caixa, Produto, DocumentoFiscal, MediaDiariaProduto } from '@shared/types'
 import type { VereditoRelogio } from '@shared/relogio'
+import {
+  classificarContingencia,
+  piorClasse,
+  PRAZO_CONTINGENCIA_HORAS,
+  type ClasseContingencia,
+} from '@shared/contingencia'
 
 /**
  * Lógica pura do painel (RF-18).
@@ -35,6 +41,10 @@ export interface EntradaAlertas {
   emEspera: unknown[]
   /** Veredito da última verificação de relógio (fatia 09). */
   relogio?: VereditoRelogio | null
+  /** Prazo de contingência configurado (fatia 10). */
+  prazoContingenciaHoras?: number
+  /** Motivo da última falha de transmissão, quando houver. */
+  motivoContingencia?: string | null
   agora?: Date
 }
 
@@ -60,11 +70,24 @@ export function montarAlertas(e: EntradaAlertas): Alerta[] {
   }
 
   if (e.contingencia.length > 0) {
+    // Três minutos e três dias apareciam iguais aqui. A idade do mais antigo é
+    // o que define a urgência — e o prazo é legal, não uma convenção nossa.
+    const situacoes = e.contingencia.map((d) =>
+      classificarContingencia(d.emitidaEm, agora.getTime(), e.prazoContingenciaHoras),
+    )
+    const pior = piorClasse(situacoes.map((s) => s.classe))
+    const maisAntiga = situacoes.reduce((a, b) => (b.horas > a.horas ? b : a))
+
     alertas.push({
       id: 'contingencia',
-      titulo: 'Documentos em contingência',
-      detalhe: 'Precisam ser retransmitidos à SEFAZ — há prazo.',
-      gravidade: 'alta',
+      titulo:
+        pior === 'vencido'
+          ? 'Contingência VENCIDA — prazo legal expirado'
+          : 'Documentos em contingência',
+      detalhe: maisAntiga.mensagem + (e.motivoContingencia ? ` Último erro: ${e.motivoContingencia}` : ''),
+      // Documento dentro da primeira hora ainda não é urgência: a fila está
+      // trabalhando. Só escala quando o tempo começa a contar contra.
+      gravidade: pior === 'normal' ? 'media' : 'alta',
       rota: '/fiscal',
       quantidade: e.contingencia.length,
     })
@@ -168,3 +191,7 @@ export function ticketMedio(total: number, quantidadeVendas: number): number {
 export function rotaInicial(perfil: string): string {
   return perfil === 'operador' ? '/caixa' : '/painel'
 }
+
+/** Reexporta para a tela não precisar conhecer dois módulos. */
+export { classificarContingencia, PRAZO_CONTINGENCIA_HORAS }
+export type { ClasseContingencia }

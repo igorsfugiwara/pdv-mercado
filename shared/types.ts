@@ -142,6 +142,10 @@ export interface DocumentoFiscal {
   emitidaEm: string | null
   autorizadaEm: string | null
   canceladaEm: string | null
+  /** Última falha de transmissão (fatia 10). */
+  ultimoErro?: string | null
+  ultimaTentativaEm?: string | null
+  tentativas?: number
 }
 
 export interface EstoqueMovimento {

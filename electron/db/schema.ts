@@ -166,6 +166,11 @@ export const documentosFiscais = sqliteTable(
     emitidaEm: text('emitida_em'),
     autorizadaEm: text('autorizada_em'),
     canceladaEm: text('cancelada_em'),
+    // Fatia 10: diagnóstico da contingência. A mensagem da SEFAZ ficava só no
+    // log do main, e sem ela o operador não sabe se espera ou age.
+    ultimoErro: text('ultimo_erro'),
+    ultimaTentativaEm: text('ultima_tentativa_em'),
+    tentativas: integer('tentativas').notNull().default(0),
   },
   (t) => ({
     statusIdx: index('idx_docfiscais_status').on(t.status),

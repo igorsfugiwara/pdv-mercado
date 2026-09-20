@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getSql, getDb } from './db'
@@ -7,11 +7,23 @@ import { hashSenha, hashPin } from './auth'
 
 const aqui = dirname(fileURLToPath(import.meta.url))
 
-/** Cria as tabelas (DDL idempotente). */
+/**
+ * Cria e evolui as tabelas (DDL idempotente).
+ *
+ * Aplica **todos** os arquivos de `migrations/` em ordem, não só o init: quando
+ * a fatia 10 acrescentou colunas, a migração nova não era aplicada porque este
+ * arquivo lia um nome fixo — e o deploy web subiria com o schema velho.
+ */
 export async function migrar() {
   const sql = getSql()
-  const ddl = readFileSync(join(aqui, 'migrations', '0000_init.sql'), 'utf-8')
-  await sql.unsafe(ddl)
+  const dir = join(aqui, 'migrations')
+  const arquivos = readdirSync(dir)
+    .filter((n) => n.endsWith('.sql'))
+    .sort()
+
+  for (const nome of arquivos) {
+    await sql.unsafe(readFileSync(join(dir, nome), 'utf-8'))
+  }
 }
 
 /**

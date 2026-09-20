@@ -26,7 +26,12 @@ import AberturaCaixa from '../components/AberturaCaixa'
 import BuscaProdutos from '../components/BuscaProdutos'
 import PagamentoPanel from '../components/PagamentoPanel'
 import BarraAtalhos from '../components/BarraAtalhos'
-import { SeloSimulado, useEstadoFiscal } from '../components/AvisoFiscalSimulado'
+import {
+  SeloSimulado,
+  useEstadoFiscal,
+  useContingenciaUrgente,
+  FaixaContingencia,
+} from '../components/AvisoFiscalSimulado'
 import { useDialogos } from '../components/dialogos'
 import { dialogoAberto } from '../components/Dialogo'
 import Aviso, { useAviso } from '../components/Aviso'
@@ -37,6 +42,7 @@ export default function CaixaScreen() {
   const cart = useCarrinhoStore()
   const capturaRef = useRef<HTMLInputElement>(null)
   const estadoFiscal = useEstadoFiscal()
+  const contingencia = useContingenciaUrgente()
   const dlg = useDialogos()
   const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
   const [limites, setLimites] = useState<LimitesDesconto>(LIMITES_PADRAO)
@@ -678,6 +684,7 @@ export default function CaixaScreen() {
       </div>
 
       <div className="mt-3 space-y-2">
+        <FaixaContingencia situacao={contingencia} />
         <Aviso aviso={aviso} onDispensar={limparAviso} />
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">

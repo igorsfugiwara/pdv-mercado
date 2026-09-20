@@ -69,9 +69,12 @@ describe('alertas', () => {
     expect(montarAlertas(vazio)).toEqual([])
   })
 
-  it('contingência vira alerta de gravidade alta e leva ao fiscal', () => {
+  it('contingência leva ao fiscal, com gravidade pela idade (fatia 10)', () => {
+    // Documento sem data de emissão não dá para classificar, e chutar urgência
+    // seria alarme falso: fica em média. A escala por idade é testada em
+    // tests/contingencia-prazo.test.ts.
     const [a] = montarAlertas({ ...vazio, contingencia: [doc(1), doc(2)] })
-    expect(a.gravidade).toBe('alta')
+    expect(a.gravidade).toBe('media')
     expect(a.rota).toBe('/fiscal')
     expect(a.quantidade).toBe(2)
   })
@@ -100,8 +103,8 @@ describe('alertas', () => {
 
   it('ordena por gravidade: alta antes de média, média antes de baixa', () => {
     const alertas = montarAlertas({
-      contingencia: [doc(1)],
-      rejeitados: [],
+      contingencia: [],
+      rejeitados: [doc(1)], // rejeitado é sempre alta
       estoqueMinimo: [produto()],
       inativosPorFiscal: [],
       caixa: null,

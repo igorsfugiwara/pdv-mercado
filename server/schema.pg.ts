@@ -180,6 +180,10 @@ export const documentosFiscais = pgTable(
     emitidaEm: text('emitida_em'),
     autorizadaEm: text('autorizada_em'),
     canceladaEm: text('cancelada_em'),
+    // Fatia 10: diagnóstico da contingência (espelho do desktop).
+    ultimoErro: text('ultimo_erro'),
+    ultimaTentativaEm: text('ultima_tentativa_em'),
+    tentativas: integer('tentativas').notNull().default(0),
   },
   (t) => ({
     statusIdx: index('idx_docfiscais_status').on(t.status),
