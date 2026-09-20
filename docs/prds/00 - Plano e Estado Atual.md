@@ -8,7 +8,7 @@ verificável — nenhuma depende de fatia futura para funcionar.
 
 | | |
 |---|---|
-| **Foco desta rodada** | Operacional impecável. Integrações reais ficam para depois. |
+| **Foco desta rodada** | Operacional impecável — **as 7 fatias estão entregues**. Integrações reais ficam para depois. |
 | **NFC-e** | **Simulada** em todas as fatias. Emissão real é fase posterior. |
 | **Alvo** | Desktop (Electron). A versão web existe e continua compilando, mas não é o foco. |
 | **Credenciais** | Seeds de teste mantidos como estão (`admin/admin123`, `caixa/caixa123`). |
@@ -75,7 +75,7 @@ primeiro porque sem ela não dá para exercitar nenhuma das outras ponta a ponta
 | **04** ✅ | [Fechamento de Caixa](04%20-%20Fechamento%20de%20Caixa.md) | Conferência cega, apuração de diferença, comprovante do turno. Fecha o ciclo abertura→fechamento. | — |
 | **05** ✅ | [Etiqueta de Balança](05%20-%20Etiqueta%20de%20Balança.md) | Bipar etiqueta de balança resolve produto e peso/valor. Liga o parser órfão. | 02 |
 | **06** ✅ | [Painel e Estoque Mínimo](06%20-%20Painel%20e%20Estoque%20Mínimo.md) | Tela inicial com o estado do turno e os alertas que exigem ação. | 04 |
-| **07** | [Aceite Ponta a Ponta](07%20-%20Aceite%20Ponta%20a%20Ponta.md) | O critério 9.4 do PRD original virado em teste E2E que roda no CI. | 03, 04, 05 |
+| **07** ✅ | [Aceite Ponta a Ponta](07%20-%20Aceite%20Ponta%20a%20Ponta.md) | O critério 9.4 do PRD original virado em teste E2E que roda no CI. | 03, 04, 05 |
 
 ### Por que esta ordem
 
@@ -86,6 +86,15 @@ construir duas vezes: uma no diálogo nativo, outra quando ele for substituído.
 
 A **07** vem por último de propósito: o teste de aceite só é honesto quando existe o
 fluxo inteiro para exercitar.
+
+> **Nota de execução (fatia 07, entregue):** o E2E achou quatro defeitos que nenhum teste
+> unitário pegaria, porque só existem com o app inteiro de pé — e um deles quebrava o app
+> **empacotado**: o preload saía em CommonJS dentro de um arquivo `.mjs`, nunca carregava,
+> e o renderer caía no adapter HTTP. Os outros: a detecção desktop/web era uma corrida com
+> o preload; o campo de captura roubava o foco dos diálogos da fatia 02 pelo `onBlur`; e o
+> primeiro bipe do turno se perdia por falta de `caixa` nas deps do efeito de foco.
+> Lição para as próximas fatias: comportamento que depende de foco, de ordem de boot ou de
+> empacotamento não é verificável por teste de componente.
 
 > **Nota de execução (fatias 05 e 06, entregues):** duas correções que valem registro.
 > Na 05, os EANs de balança usados nos testes tinham **dígito verificador inválido** e
