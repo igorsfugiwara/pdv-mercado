@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, and, gte, lte, desc, inArray } from 'drizzle-orm'
 import { getDb } from '../db'
 import {
   vendas,
@@ -8,8 +8,18 @@ import {
   estoqueMovimentos,
   produtos,
   contadoresFiscais,
+  usuarios,
 } from '../schema.pg'
-import type { Venda, DocumentoFiscal, FinalizarVendaInput } from '@shared/types'
+import type {
+  Venda,
+  DocumentoFiscal,
+  FinalizarVendaInput,
+  VendaResumo,
+  FiltroVendas,
+  StatusVenda,
+  StatusDocumentoFiscal,
+  FormaPagamento,
+} from '@shared/types'
 import { validarFinalizacao } from '@shared/vendaValidacao'
 
 const SERIE_PADRAO = 1
@@ -160,5 +170,66 @@ export const vendasRepo = {
         .set({ status: 'cancelada', canceladaEm: agora, canceladaPorId: usuarioId })
         .where(eq(vendas.id, vendaId))
     })
+  },
+  /** Espelho de `listar` do desktop (RF-09). */
+  async listar(filtro: FiltroVendas): Promise<VendaResumo[]> {
+    const db = getDb()
+    const conds = filtro.id
+      ? [eq(vendas.id, filtro.id)]
+      : [
+          gte(vendas.criadoEm, filtro.de),
+          lte(vendas.criadoEm, `${filtro.ate}T23:59:59.999`),
+          ...(filtro.usuarioId ? [eq(vendas.usuarioId, filtro.usuarioId)] : []),
+          ...(filtro.status ? [eq(vendas.status, filtro.status)] : []),
+        ]
+
+    const linhas = await db
+      .select({
+        id: vendas.id,
+        criadoEm: vendas.criadoEm,
+        usuarioId: vendas.usuarioId,
+        operador: usuarios.nome,
+        total: vendas.total,
+        desconto: vendas.desconto,
+        status: vendas.status,
+        documentoId: documentosFiscais.id,
+        documentoStatus: documentosFiscais.status,
+        documentoChave: documentosFiscais.chaveAcesso,
+        documentoAutorizadaEm: documentosFiscais.autorizadaEm,
+      })
+      .from(vendas)
+      .innerJoin(usuarios, eq(vendas.usuarioId, usuarios.id))
+      .leftJoin(documentosFiscais, eq(documentosFiscais.vendaId, vendas.id))
+      .where(and(...conds))
+      .orderBy(desc(vendas.id))
+
+    if (linhas.length === 0) return []
+    const ids = linhas.map((l) => l.id)
+
+    const itens = await db
+      .select({ vendaId: vendaItens.vendaId })
+      .from(vendaItens)
+      .where(inArray(vendaItens.vendaId, ids))
+    const pagamentos = await db
+      .select({ vendaId: vendaPagamentos.vendaId, forma: vendaPagamentos.forma })
+      .from(vendaPagamentos)
+      .where(inArray(vendaPagamentos.vendaId, ids))
+
+    const contagem = new Map<number, number>()
+    for (const i of itens) contagem.set(i.vendaId, (contagem.get(i.vendaId) ?? 0) + 1)
+    const formas = new Map<number, FormaPagamento[]>()
+    for (const p of pagamentos) {
+      const lista = formas.get(p.vendaId) ?? []
+      if (!lista.includes(p.forma as FormaPagamento)) lista.push(p.forma as FormaPagamento)
+      formas.set(p.vendaId, lista)
+    }
+
+    return linhas.map((l) => ({
+      ...l,
+      status: l.status as StatusVenda,
+      documentoStatus: (l.documentoStatus ?? null) as StatusDocumentoFiscal | null,
+      quantidadeItens: contagem.get(l.id) ?? 0,
+      formas: formas.get(l.id) ?? [],
+    }))
   },
 }

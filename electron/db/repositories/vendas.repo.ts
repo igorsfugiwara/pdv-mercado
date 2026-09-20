@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { eq, sql, and, gte, lte, desc, inArray } from 'drizzle-orm'
 import { getDb } from '../index'
 import {
   vendas,
@@ -8,8 +8,15 @@ import {
   estoqueMovimentos,
   produtos,
   contadoresFiscais,
+  usuarios,
 } from '../schema'
-import type { Venda, DocumentoFiscal, FinalizarVendaInput } from '@shared/types'
+import type { Venda, DocumentoFiscal, FinalizarVendaInput,
+  VendaResumo,
+  FiltroVendas,
+  StatusVenda,
+  StatusDocumentoFiscal,
+  FormaPagamento,
+} from '@shared/types'
 import { validarFinalizacao } from '@shared/vendaValidacao'
 
 const SERIE_PADRAO = 1
@@ -164,5 +171,75 @@ export const vendasRepo = {
         .where(eq(vendas.id, vendaId))
         .run()
     })
+  },
+  /**
+   * Vendas do período, com operador, formas de pagamento e documento fiscal.
+   *
+   * Cancelada aparece na lista, riscada pela UI: auditoria é histórico, não
+   * faxina — some da tela e ninguém consegue explicar o estorno de estoque.
+   */
+  async listar(filtro: FiltroVendas): Promise<VendaResumo[]> {
+    const db = getDb()
+
+    const conds = filtro.id
+      ? [eq(vendas.id, filtro.id)]
+      : [
+          gte(vendas.criadoEm, filtro.de),
+          lte(vendas.criadoEm, `${filtro.ate}T23:59:59.999`),
+          ...(filtro.usuarioId ? [eq(vendas.usuarioId, filtro.usuarioId)] : []),
+          ...(filtro.status ? [eq(vendas.status, filtro.status)] : []),
+        ]
+
+    const linhas = await db
+      .select({
+        id: vendas.id,
+        criadoEm: vendas.criadoEm,
+        usuarioId: vendas.usuarioId,
+        operador: usuarios.nome,
+        total: vendas.total,
+        desconto: vendas.desconto,
+        status: vendas.status,
+        documentoId: documentosFiscais.id,
+        documentoStatus: documentosFiscais.status,
+        documentoChave: documentosFiscais.chaveAcesso,
+        documentoAutorizadaEm: documentosFiscais.autorizadaEm,
+      })
+      .from(vendas)
+      .innerJoin(usuarios, eq(vendas.usuarioId, usuarios.id))
+      .leftJoin(documentosFiscais, eq(documentosFiscais.vendaId, vendas.id))
+      .where(and(...conds))
+      .orderBy(desc(vendas.id))
+
+    if (linhas.length === 0) return []
+
+    // Itens e pagamentos em duas consultas, não N+1: uma lista de 200 vendas
+    // faria 400 idas ao banco no laço.
+    const ids = linhas.map((l) => l.id)
+    const itens = await db
+      .select({ vendaId: vendaItens.vendaId, quantidade: vendaItens.quantidade })
+      .from(vendaItens)
+      .where(inArray(vendaItens.vendaId, ids))
+    const pagamentos = await db
+      .select({ vendaId: vendaPagamentos.vendaId, forma: vendaPagamentos.forma })
+      .from(vendaPagamentos)
+      .where(inArray(vendaPagamentos.vendaId, ids))
+
+    const contagem = new Map<number, number>()
+    for (const i of itens) contagem.set(i.vendaId, (contagem.get(i.vendaId) ?? 0) + 1)
+
+    const formas = new Map<number, FormaPagamento[]>()
+    for (const p of pagamentos) {
+      const lista = formas.get(p.vendaId) ?? []
+      if (!lista.includes(p.forma as FormaPagamento)) lista.push(p.forma as FormaPagamento)
+      formas.set(p.vendaId, lista)
+    }
+
+    return linhas.map((l) => ({
+      ...l,
+      status: l.status as StatusVenda,
+      documentoStatus: (l.documentoStatus ?? null) as StatusDocumentoFiscal | null,
+      quantidadeItens: contagem.get(l.id) ?? 0,
+      formas: formas.get(l.id) ?? [],
+    }))
   },
 }

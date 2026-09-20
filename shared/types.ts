@@ -276,6 +276,42 @@ export interface MediaDiariaProduto {
   mediaDiaria: number
 }
 
+/** Uma venda na listagem — o suficiente para achar e decidir cancelar. */
+export interface VendaResumo {
+  id: number
+  criadoEm: string
+  usuarioId: number
+  operador: string
+  total: number
+  desconto: number
+  status: StatusVenda
+  quantidadeItens: number
+  formas: FormaPagamento[]
+  /** Documento fiscal da venda, quando existe. */
+  documentoId: number | null
+  documentoStatus: StatusDocumentoFiscal | null
+  documentoChave: string | null
+  documentoAutorizadaEm: string | null
+}
+
+export interface FiltroVendas {
+  de: string
+  ate: string
+  usuarioId?: number
+  status?: StatusVenda
+  /** Número exato da venda — quando informado, os outros filtros são ignorados. */
+  id?: number
+}
+
+/** Resultado do cancelamento, incluindo o que aconteceu com o documento fiscal. */
+export interface ResultadoCancelamentoVenda {
+  ok: boolean
+  motivo?: string
+  /** O que aconteceu com a NFC-e. */
+  fiscal: 'cancelada' | 'fora-do-prazo' | 'falhou' | 'sem-documento'
+  detalheFiscal?: string
+}
+
 // ---- Relatórios (RF-22..25) ----
 
 export interface RelatorioVendas {

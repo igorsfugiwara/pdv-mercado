@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { IPC } from '@shared/ipc'
 import type { ProdutoInput, RelatorioVendasFiltro } from '@shared/ipc'
+import type { FiltroVendas } from '@shared/types'
 import type {
   FinalizarVendaInput,
   StatusDocumentoFiscal,
@@ -224,13 +225,39 @@ const handlers: Record<string, Handler> = {
   // ---- Vendas (RF-01..10, 16, 26, 27) ----
   [IPC.vendas.finalizar]: ([input]: [FinalizarVendaInput]) => finalizarVenda(input),
 
-  [IPC.vendas.cancelar]: async ([vendaId, usuarioId, autorizadoPorId]: [
-    number,
-    number,
-    number,
-  ]) => {
-    await vendasRepo.cancelar(vendaId, usuarioId)
-    await auditoriaRepo.registrar(usuarioId, 'venda_cancelar', { vendaId, autorizadoPorId })
+  [IPC.vendas.listar]: ([filtro]: [FiltroVendas]) => vendasRepo.listar(filtro),
+
+  /**
+   * Mesma regra do desktop, com a diferença que a web é sempre simulada: não há
+   * cancelamento real na SEFAZ para fazer aqui.
+   */
+  [IPC.vendas.cancelar]: async (
+    [vendaId, justificativa, autorizadoPorId]: [number, string, number],
+    ctx,
+  ) => {
+    if (justificativa.trim().length < 15) {
+      return {
+        ok: false,
+        motivo: `Justificativa precisa de ao menos 15 caracteres (tem ${justificativa.trim().length}).`,
+        fiscal: 'sem-documento' as const,
+      }
+    }
+    const usuarioId = ctx.usuarioId
+    try {
+      await vendasRepo.cancelar(vendaId, usuarioId ?? 0)
+    } catch (e) {
+      return {
+        ok: false,
+        motivo: e instanceof Error ? e.message : String(e),
+        fiscal: 'sem-documento' as const,
+      }
+    }
+    await auditoriaRepo.registrar(usuarioId, 'venda_cancelar', {
+      vendaId,
+      justificativa,
+      autorizadoPorId,
+    })
+    return { ok: true, fiscal: 'sem-documento' as const }
   },
 
   [IPC.vendas.salvarEspera]: async ([input]: [FinalizarVendaInput]) => {

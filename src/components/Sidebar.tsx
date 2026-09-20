@@ -9,6 +9,7 @@ const LINKS = [
     label: 'Fechar caixa',
     perfis: ['admin', 'supervisor', 'operador'],
   },
+  { to: '/vendas', label: 'Vendas', perfis: ['admin', 'supervisor'] },
   { to: '/produtos', label: 'Produtos', perfis: ['admin', 'supervisor'] },
   { to: '/estoque', label: 'Estoque', perfis: ['admin', 'supervisor'] },
   { to: '/relatorios', label: 'Relatórios', perfis: ['admin', 'supervisor'] },

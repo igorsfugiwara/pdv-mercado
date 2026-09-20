@@ -135,6 +135,7 @@ export const apiWeb: PdvApi = {
 
   vendas: {
     finalizar: (input) => rpc(IPC.vendas.finalizar, input),
+    listar: (filtro) => rpc(IPC.vendas.listar, filtro),
     cancelar: (vendaId, usuarioId, autorizadoPorId) =>
       rpc(IPC.vendas.cancelar, vendaId, usuarioId, autorizadoPorId),
     salvarEspera: (input) => rpc(IPC.vendas.salvarEspera, input),

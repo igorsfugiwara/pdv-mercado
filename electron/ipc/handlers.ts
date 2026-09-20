@@ -13,6 +13,7 @@ import type {
   ResultadoFechamento,
   ProviderFiscal,
   ModoFalhaFiscal,
+  FiltroVendas,
 } from '@shared/types'
 import { RASCUNHO_ID } from '@shared/types'
 import { getDb } from '../db/index'
@@ -33,7 +34,7 @@ import {
 import { auditoriaRepo } from '../db/repositories/auditoria.repo'
 import { relatoriosRepo } from '../db/repositories/relatorios.repo'
 import { vendasRepo } from '../db/repositories/vendas.repo'
-import { finalizarVenda } from '../services/vendaService'
+import { finalizarVenda, cancelarVenda } from '../services/vendaService'
 import { importarProdutosCsv } from '../services/csvImport'
 import { backupAgora, exportarPara } from '../services/backup'
 import {
@@ -247,12 +248,14 @@ export function registerIpc(dataDir: string) {
   // ---- Vendas (RF-01..10, 16, 26, 27) ----
   ipcMain.handle(IPC.vendas.finalizar, (_e, input: FinalizarVendaInput) => finalizarVenda(input))
 
+  ipcMain.handle(IPC.vendas.listar, (_e, filtro: FiltroVendas) => vendasRepo.listar(filtro))
+
+  // A autorização e a justificativa são verificadas no serviço; aqui só o autor,
+  // que vem da sessão do main e não do renderer.
   ipcMain.handle(
     IPC.vendas.cancelar,
-    async (_e, vendaId: number, usuarioId: number, autorizadoPorId: number) => {
-      vendasRepo.cancelar(vendaId, usuarioId)
-      await auditoriaRepo.registrar(usuarioId, 'venda_cancelar', { vendaId, autorizadoPorId })
-    },
+    async (_e, vendaId: number, justificativa: string, autorizadoPorId: number) =>
+      cancelarVenda(vendaId, session.exigir().id, justificativa, autorizadoPorId),
   )
 
   ipcMain.handle(IPC.vendas.salvarEspera, async (_e, input: FinalizarVendaInput) => {

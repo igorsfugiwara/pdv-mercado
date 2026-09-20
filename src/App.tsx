@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar'
 import LoginScreen from './screens/LoginScreen'
 import CaixaScreen from './screens/CaixaScreen'
 import PainelScreen from './screens/PainelScreen'
+import VendasScreen from './screens/VendasScreen'
 import FechamentoScreen from './screens/FechamentoScreen'
 import ProdutosScreen from './screens/ProdutosScreen'
 import EstoqueScreen from './screens/EstoqueScreen'
@@ -28,6 +29,7 @@ export default function App() {
         <Routes>
           <Route path="/painel" element={<PainelScreen />} />
           <Route path="/caixa" element={<CaixaScreen />} />
+          <Route path="/vendas" element={<VendasScreen />} />
           <Route path="/fechamento" element={<FechamentoScreen />} />
           <Route path="/produtos" element={<ProdutosScreen />} />
           <Route path="/estoque" element={<EstoqueScreen />} />

@@ -20,6 +20,9 @@ import type {
   RelatorioVendas,
   LinhaCurvaAbc,
   MediaDiariaProduto,
+  VendaResumo,
+  FiltroVendas,
+  ResultadoCancelamentoVenda,
 } from './types'
 
 export interface LoginResult {
@@ -114,7 +117,17 @@ export interface PdvApi {
   }
   vendas: {
     finalizar(input: FinalizarVendaInput): Promise<ResultadoVenda>
-    cancelar(vendaId: number, usuarioId: number, autorizadoPorId: number): Promise<void>
+    /** Vendas do período, para achar a que será cancelada (RF-09). */
+    listar(filtro: FiltroVendas): Promise<VendaResumo[]>
+    /**
+     * Cancela venda finalizada: estorna estoque E cancela a NFC-e quando
+     * dentro do prazo legal. Devolve o que aconteceu com o documento.
+     */
+    cancelar(
+      vendaId: number,
+      justificativa: string,
+      autorizadoPorId: number,
+    ): Promise<ResultadoCancelamentoVenda>
     salvarEspera(input: FinalizarVendaInput): Promise<{ id: string }>
     recuperarEspera(): Promise<Array<{ id: string; input: FinalizarVendaInput }>>
     removerEspera(id: string): Promise<void>
@@ -200,6 +213,7 @@ export const IPC = {
   },
   vendas: {
     finalizar: 'vendas:finalizar',
+    listar: 'vendas:listar',
     cancelar: 'vendas:cancelar',
     salvarEspera: 'vendas:salvarEspera',
     recuperarEspera: 'vendas:recuperarEspera',

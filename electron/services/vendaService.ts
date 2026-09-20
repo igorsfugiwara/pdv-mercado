@@ -1,11 +1,13 @@
 import log from 'electron-log'
 import { vendasRepo } from '../db/repositories/vendas.repo'
 import { fiscalRepo } from '../db/repositories/fiscal.repo'
+import { auditoriaRepo } from '../db/repositories/auditoria.repo'
 import { produtosRepo } from '../db/repositories/produtos.repo'
 import { configRepo } from '../db/repositories/config.repo'
 import { getFiscalProvider } from '../fiscal'
 import { imprimirDanfe, pulsoGaveta } from '../hardware/printer'
 import type {
+  ResultadoCancelamentoVenda,
   FinalizarVendaInput,
   ResultadoVenda,
   VendaFiscal,
@@ -127,5 +129,100 @@ async function montarDanfe(
     emitidaEm: venda.criadoEm,
     consumidorCpf: input.clienteCpf,
     contingencia,
+  }
+}
+
+/** Janela legal para cancelar NFC-e, em minutos. SP usa 30. */
+export const MINUTOS_CANCELAMENTO_PADRAO = 30
+
+/**
+ * Cancela uma venda finalizada (RF-09/RF-16/RF-28).
+ *
+ * A ordem importa: o banco primeiro, a SEFAZ depois. O estorno de estoque é o
+ * que o mercado precisa de volta na gôndola, e não pode ficar refém de a SEFAZ
+ * responder. Se o cancelamento fiscal falhar, a venda **continua cancelada** e
+ * o documento fica pendente para nova tentativa.
+ */
+export async function cancelarVenda(
+  vendaId: number,
+  usuarioId: number,
+  justificativa: string,
+  autorizadoPorId: number,
+): Promise<ResultadoCancelamentoVenda> {
+  // A SEFAZ exige 15 caracteres na justificativa do evento; não faz sentido a
+  // aplicação aceitar menos do que o fisco.
+  if (justificativa.trim().length < 15) {
+    return {
+      ok: false,
+      motivo: `Justificativa precisa de ao menos 15 caracteres (tem ${justificativa.trim().length}).`,
+      fiscal: 'sem-documento',
+    }
+  }
+
+  const documento = (await fiscalRepo.listar()).find((d) => d.vendaId === vendaId) ?? null
+
+  // 1) Banco: estorno de estoque e status, em transação (já existente).
+  try {
+    vendasRepo.cancelar(vendaId, usuarioId)
+  } catch (e) {
+    // Segunda tentativa de cancelar a mesma venda cai aqui, sem efeito colateral.
+    return {
+      ok: false,
+      motivo: e instanceof Error ? e.message : String(e),
+      fiscal: 'sem-documento',
+    }
+  }
+
+  await auditoriaRepo.registrar(usuarioId, 'venda_cancelar', {
+    vendaId,
+    justificativa,
+    autorizadoPorId,
+  })
+
+  // 2) Fiscal, fora da transação.
+  if (!documento || documento.status !== 'autorizada' || !documento.chaveAcesso) {
+    return { ok: true, fiscal: 'sem-documento' }
+  }
+
+  const limite = Number(
+    (await configRepo.obter('fiscal.cancelamento.minutos')) ?? MINUTOS_CANCELAMENTO_PADRAO,
+  )
+  const referencia = documento.autorizadaEm ?? documento.emitidaEm
+  const minutosDesde = referencia
+    ? (Date.now() - new Date(referencia).getTime()) / 60_000
+    : Number.POSITIVE_INFINITY
+
+  if (minutosDesde > limite) {
+    // Fora do prazo o caminho é contábil, não técnico. Dizer que cancelou seria
+    // mentira que só aparece meses depois, na apuração.
+    await auditoriaRepo.registrar(usuarioId, 'venda_cancelar_fora_prazo', {
+      vendaId,
+      minutosDesde: Math.round(minutosDesde),
+      limite,
+    })
+    return {
+      ok: true,
+      fiscal: 'fora-do-prazo',
+      detalheFiscal: `A NFC-e foi autorizada há ${Math.round(minutosDesde)} min e o prazo de cancelamento é de ${limite} min. A venda foi cancelada no sistema; o acerto fiscal é com a contabilidade.`,
+    }
+  }
+
+  try {
+    const r = await getFiscalProvider().cancelar(documento.chaveAcesso, justificativa)
+    if (!r.ok) {
+      return { ok: true, fiscal: 'falhou', detalheFiscal: r.motivo ?? 'SEFAZ recusou o cancelamento.' }
+    }
+    await fiscalRepo.atualizarStatus(documento.id, {
+      status: 'cancelada',
+      canceladaEm: new Date().toISOString(),
+    })
+    return { ok: true, fiscal: 'cancelada' }
+  } catch (e) {
+    log.warn('[venda] cancelamento fiscal indisponível', e)
+    return {
+      ok: true,
+      fiscal: 'falhou',
+      detalheFiscal: e instanceof Error ? e.message : String(e),
+    }
   }
 }
