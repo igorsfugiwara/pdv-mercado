@@ -4,6 +4,14 @@ import { useCaixaStore } from '../store/caixaStore'
 import { useAuthStore } from '../store/authStore'
 import { useCarrinhoStore, FORMAS_PAGAMENTO } from '../store/carrinhoStore'
 import { formatBRL } from '../lib/money'
+import {
+  exigeAutorizacao,
+  descontoParaBps,
+  formatarBps,
+  LIMITES_PADRAO,
+  CHAVES_LIMITE,
+  type LimitesDesconto,
+} from '@shared/autorizacao'
 import { validarCpf } from '../lib/cpf'
 import AberturaCaixa from '../components/AberturaCaixa'
 import BuscaProdutos from '../components/BuscaProdutos'
@@ -22,6 +30,23 @@ export default function CaixaScreen() {
   const estadoFiscal = useEstadoFiscal()
   const dlg = useDialogos()
   const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
+  const [limites, setLimites] = useState<LimitesDesconto>(LIMITES_PADRAO)
+
+  // Limites de desconto por perfil (RF-05). O main reconfere na autorização —
+  // isto aqui decide só se a tela pede PIN.
+  useEffect(() => {
+    void window.api.config.todas().then((c) => {
+      const ler = (chave: string, padrao: number) => {
+        const n = Number(c[chave])
+        return Number.isFinite(n) && n >= 0 ? n : padrao
+      }
+      setLimites({
+        operador: ler(CHAVES_LIMITE.operador, LIMITES_PADRAO.operador),
+        supervisor: ler(CHAVES_LIMITE.supervisor, LIMITES_PADRAO.supervisor),
+        admin: ler(CHAVES_LIMITE.admin, LIMITES_PADRAO.admin),
+      })
+    })
+  }, [])
   const [captura, setCaptura] = useState('')
   const [busca, setBusca] = useState(false)
   const [pagamento, setPagamento] = useState(false)
@@ -153,8 +178,8 @@ export default function CaixaScreen() {
       else if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); trocarOperador() }
       else if (e.key === 'F2') { e.preventDefault(); setBusca(true) }
       else if (e.key === 'F3') { e.preventDefault(); definirMultiplicador() }
-      else if (e.key === 'F4') { e.preventDefault(); pedirDescontoVenda() }
-      else if (e.key === 'F6') { e.preventDefault(); cancelarItemSelecionado() }
+      else if (e.key === 'F4') { e.preventDefault(); void pedirDesconto() }
+      else if (e.key === 'F6') { e.preventDefault(); void cancelarItemSelecionado() }
       else if (e.key === 'F7') { e.preventDefault(); void colocarEmEspera() }
       else if (e.key === 'F8') { e.preventDefault(); pedirCpf() }
       else if (e.key === 'F9') { e.preventDefault(); void sangriaSuprimento() }
@@ -196,40 +221,185 @@ export default function CaixaScreen() {
     avisar(`Multiplicador: ${n}×`, 'sucesso')
   }
 
-  async function pedirDescontoVenda() {
+  /**
+   * Obtém autorização para um desconto acima do limite do operador.
+   * Devolve o id de quem autorizou, ou null se não houve (ou foi recusada).
+   */
+  async function autorizarSeNecessario(bps: number): Promise<number | null | 'recusado'> {
+    if (!exigeAutorizacao(usuario.perfil, bps, limites)) return null
+
+    const pin = await dlg.pedirPin({
+      titulo: 'Autorização de desconto',
+      descricao: `${formatarBps(bps)} passa do limite do seu perfil. PIN do supervisor.`,
+    })
+    if (!pin) return 'recusado'
+
+    const r = await window.api.auth.autorizarDesconto(pin, bps)
+    if (!r.ok || !r.usuario) {
+      // Recusa por alçada vem com motivo do main — não adianta pedir outro PIN.
+      avisar(r.motivo ?? 'PIN sem permissão.', 'erro')
+      return 'recusado'
+    }
+    return r.usuario.id
+  }
+
+  // RF-05: F4 sobre a linha selecionada desconta no item; sem seleção, na venda.
+  async function pedirDesconto() {
+    const temSelecao = cart.itens.length > 0
+    if (temSelecao) {
+      const idx = Math.min(selecionado, cart.itens.length - 1)
+      await descontarItem(idx)
+    } else {
+      await descontarVenda()
+    }
+  }
+
+  async function descontarVenda() {
+    const base = cart.subtotal()
+    if (base <= 0) {
+      avisar('Não há valor para descontar.', 'erro')
+      return
+    }
     const centavos = await dlg.pedirValor({
       titulo: 'Desconto na venda',
-      descricao: 'Valor em reais a abater do total.',
+      descricao: `Subtotal ${formatBRL(base)}. Valor em reais a abater.`,
     })
     if (centavos === null) return
+    if (centavos > base) {
+      avisar('O desconto não pode passar do subtotal.', 'erro')
+      return
+    }
+
+    const bps = descontoParaBps(centavos, base)
+    const autorizador = await autorizarSeNecessario(bps)
+    if (autorizador === 'recusado') return
+
     cart.aplicarDescontoVenda(centavos)
-    avisar(`Desconto de ${formatBRL(centavos)} aplicado.`, 'sucesso')
+    void window.api.auditoria.registrar('desconto_venda', {
+      valor: centavos,
+      bps,
+      subtotal: base,
+      autorizadoPorId: autorizador,
+    })
+    avisar(
+      `Desconto de ${formatBRL(centavos)} (${formatarBps(bps)}) aplicado à venda.`,
+      'sucesso',
+    )
+  }
+
+  async function descontarItem(idx: number) {
+    const item = cart.itens[idx]
+    if (!item) return
+    const totalItem = Math.round(item.precoUnitario * item.quantidade)
+
+    const centavos = await dlg.pedirValor({
+      titulo: 'Desconto no item',
+      descricao: `${item.descricao} — ${formatBRL(totalItem)}.`,
+      valorInicial: item.desconto ? String(item.desconto / 100) : '',
+    })
+    if (centavos === null) return
+
+    // A finalização já rejeita item negativo; a UI impede antes, com motivo.
+    if (centavos >= totalItem) {
+      avisar('O desconto não pode zerar nem exceder o item.', 'erro')
+      return
+    }
+
+    const bps = descontoParaBps(centavos, totalItem)
+    const autorizador = await autorizarSeNecessario(bps)
+    if (autorizador === 'recusado') return
+
+    cart.aplicarDescontoItem(idx, centavos)
+    void window.api.auditoria.registrar('desconto_item', {
+      produtoId: item.produtoId,
+      descricao: item.descricao,
+      valor: centavos,
+      bps,
+      autorizadoPorId: autorizador,
+    })
+    avisar(
+      `Desconto de ${formatBRL(centavos)} (${formatarBps(bps)}) em ${item.descricao}.`,
+      'sucesso',
+    )
   }
 
   // F12: cancelar a venda inteira é destrutivo — confirmação com foco no Voltar.
   async function cancelarVenda() {
-    if (cart.itens.length === 0) return
+    // Carrinho vazio não pede nada: não há o que autorizar nem o que auditar.
+    if (cart.itens.length === 0) {
+      cart.limpar()
+      return
+    }
+
+    const total = cart.total()
     const ok = await dlg.confirmar({
       titulo: 'Cancelar a venda?',
-      descricao: `${cart.itens.length} item(ns) serão descartados. A ação não pode ser desfeita.`,
+      descricao: `${cart.itens.length} item(ns), ${formatBRL(total)}. A ação não pode ser desfeita.`,
       rotuloConfirmar: 'Cancelar venda',
       destrutivo: true,
     })
-    if (ok) {
-      cart.limpar()
-      avisar('Venda cancelada.', 'info')
+    if (!ok) return
+
+    const pin = await dlg.pedirPin({
+      titulo: 'Autorização do supervisor',
+      descricao: `Cancelamento de venda com ${formatBRL(total)} lançados.`,
+    })
+    if (!pin) return
+
+    const auth = await window.api.auth.autorizarSupervisor(pin)
+    if (!auth.ok || !auth.usuario) {
+      avisar('PIN sem permissão para cancelar a venda.', 'erro')
+      return
     }
+
+    const itens = cart.itens.map((i) => ({
+      produtoId: i.produtoId,
+      descricao: i.descricao,
+      quantidade: i.quantidade,
+    }))
+    cart.limpar()
+    void window.api.auditoria.registrar('venda_cancelar_carrinho', {
+      itens,
+      total,
+      autorizadoPorId: auth.usuario.id,
+    })
+    avisar('Venda cancelada.', 'info')
   }
 
   // RF-06: cancela o item selecionado. Antes só dava para remover o último —
   // se o cliente desistisse do terceiro de dez itens, não havia caminho.
-  function cancelarItemSelecionado() {
+  // RF-06/RF-21: cancela o item SELECIONADO (não o último), exige PIN e audita.
+  async function cancelarItemSelecionado() {
     if (cart.itens.length === 0) return
     const idx = Math.min(selecionado, cart.itens.length - 1)
     const it = cart.itens[idx]
+    const total = Math.round(it.precoUnitario * it.quantidade) - it.desconto
+
+    const pin = await dlg.pedirPin({
+      titulo: 'Cancelar item',
+      descricao: `${it.descricao} — ${formatBRL(total)}. PIN do supervisor.`,
+    })
+    if (!pin) return
+
+    const auth = await window.api.auth.autorizarSupervisor(pin)
+    if (!auth.ok || !auth.usuario) {
+      avisar('PIN sem permissão para cancelar item.', 'erro')
+      return
+    }
+
     cart.removerItem(idx)
     setSelecionado((i) => Math.max(0, Math.min(i, cart.itens.length - 2)))
-    avisar(`Item cancelado: ${it.descricao}`)
+
+    // A venda ainda não existe no banco: o que se audita é o ato do operador —
+    // quem tirou o quê do carrinho, e com autorização de quem.
+    void window.api.auditoria.registrar('venda_item_cancelar', {
+      produtoId: it.produtoId,
+      descricao: it.descricao,
+      quantidade: it.quantidade,
+      total,
+      autorizadoPorId: auth.usuario.id,
+    })
+    avisar(`Item cancelado: ${it.descricao}`, 'sucesso')
   }
 
   // RF-26/27: coloca a venda em espera para atender outra e retomar depois.
@@ -388,8 +558,8 @@ export default function CaixaScreen() {
             </div>
           </div>
           <div className="space-y-2">
-            <button className="btn-ghost w-full" onClick={pedirDescontoVenda}>
-              Desconto na venda (F4)
+            <button className="btn-ghost w-full" onClick={() => void descontarVenda()}>
+              Desconto na venda
             </button>
             {emEspera.length > 0 && (
               <button className="btn-ghost w-full" onClick={() => setEsperaAberta(true)}>

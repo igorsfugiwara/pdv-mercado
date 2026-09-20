@@ -86,6 +86,22 @@ export default function ConfigScreen() {
         </section>
 
         <section className="card">
+          <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">
+            Limites de desconto (RF-05)
+          </h2>
+          <div className="space-y-3">
+            <CampoConfig chave="desconto.limite.operador" label="Operador — teto em basis points" config={config} onSalvar={salvar} placeholder="500" />
+            <CampoConfig chave="desconto.limite.supervisor" label="Supervisor — teto em basis points" config={config} onSalvar={salvar} placeholder="1500" />
+            <CampoConfig chave="desconto.limite.admin" label="Admin — teto em basis points" config={config} onSalvar={salvar} placeholder="10000" />
+          </div>
+          <p className="mt-2 text-xs text-text-muted">
+            Basis points: <strong>500 = 5,00%</strong>, 1500 = 15,00%, 10000 = 100%.
+            Acima do teto do próprio perfil, o desconto exige PIN de quem tenha alçada —
+            e quem autoriza também respeita o próprio limite. Padrão: 500 / 1500 / 10000.
+          </p>
+        </section>
+
+        <section className="card">
           <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">Caixa</h2>
           <div className="space-y-3">
             <CampoConfig chave="caixa.diferenca.limite" label="Limite de diferença sem justificativa (centavos)" config={config} onSalvar={salvar} placeholder="1000" />

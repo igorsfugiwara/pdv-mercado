@@ -91,9 +91,13 @@ export const apiWeb: PdvApi = {
     login: (login, senha) => rpc(IPC.auth.login, login, senha),
     trocarOperador: (pin) => rpc(IPC.auth.trocarOperador, pin),
     autorizarSupervisor: (pin) => rpc(IPC.auth.autorizarSupervisor, pin),
+    autorizarDesconto: (pin, descontoBps) => rpc(IPC.auth.autorizarDesconto, pin, descontoBps),
     logout: () => rpc(IPC.auth.logout),
   },
 
+  auditoria: {
+    registrar: (acao, detalhe) => rpc(IPC.auditoria.registrar, acao, detalhe),
+  },
   produtos: {
     listar: (incluirInativos) => rpc(IPC.produtos.listar, incluirInativos),
     buscar: (termo) => rpc(IPC.produtos.buscar, termo),

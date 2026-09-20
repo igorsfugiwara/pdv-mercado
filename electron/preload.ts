@@ -11,7 +11,11 @@ const api: PdvApi = {
     login: (login, senha) => invoke(IPC.auth.login, login, senha),
     trocarOperador: (pin) => invoke(IPC.auth.trocarOperador, pin),
     autorizarSupervisor: (pin) => invoke(IPC.auth.autorizarSupervisor, pin),
+    autorizarDesconto: (pin, descontoBps) => invoke(IPC.auth.autorizarDesconto, pin, descontoBps),
     logout: () => invoke(IPC.auth.logout),
+  },
+  auditoria: {
+    registrar: (acao, detalhe) => invoke(IPC.auditoria.registrar, acao, detalhe),
   },
   produtos: {
     listar: (incluirInativos) => invoke(IPC.produtos.listar, incluirInativos),

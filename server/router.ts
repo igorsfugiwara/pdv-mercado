@@ -15,6 +15,12 @@ import { caixaRepo } from './repos/caixa.repo'
 import { estoqueRepo } from './repos/estoque.repo'
 import { fiscalRepo } from './repos/fiscal.repo'
 import { configRepo } from './repos/config.repo'
+import {
+  podeAutorizar,
+  LIMITES_PADRAO,
+  CHAVES_LIMITE,
+  type LimitesDesconto,
+} from '@shared/autorizacao'
 import { auditoriaRepo } from './repos/auditoria.repo'
 import { relatoriosRepo } from './repos/relatorios.repo'
 import { vendasRepo } from './repos/vendas.repo'
@@ -44,6 +50,20 @@ type Handler = (args: any, ctx: Contexto) => unknown
  * indexado pelos MESMOS canais de `shared/ipc.ts` — o contrato continua sendo
  * fonte única para desktop, servidor e cliente.
  */
+/** Limites de desconto por perfil, com o padrão quando não há configuração. */
+async function lerLimitesDesconto(): Promise<LimitesDesconto> {
+  const lido = async (chave: string, padrao: number) => {
+    const v = await configRepo.obter(chave)
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 0 ? n : padrao
+  }
+  return {
+    operador: await lido(CHAVES_LIMITE.operador, LIMITES_PADRAO.operador),
+    supervisor: await lido(CHAVES_LIMITE.supervisor, LIMITES_PADRAO.supervisor),
+    admin: await lido(CHAVES_LIMITE.admin, LIMITES_PADRAO.admin),
+  }
+}
+
 const handlers: Record<string, Handler> = {
   // ---- Auth (RF-19/20) ----
   [IPC.auth.login]: async ([login, senha]: [string, string], ctx) => {
@@ -65,6 +85,29 @@ const handlers: Record<string, Handler> = {
   [IPC.auth.autorizarSupervisor]: async ([pin]: [string]) => {
     const usuario = await usuariosRepo.porPin(pin, ['admin', 'supervisor'])
     return usuario ? { ok: true, usuario } : { ok: false }
+  },
+
+  // Mesma regra do desktop: PIN **e** alçada, verificados no servidor.
+  [IPC.auth.autorizarDesconto]: async ([pin, descontoBps]: [string, number], ctx) => {
+    const usuario = await usuariosRepo.porPin(pin, ['admin', 'supervisor'])
+    if (!usuario) return { ok: false, motivo: 'PIN sem permissão para autorizar desconto.' }
+
+    const veredito = podeAutorizar(usuario.perfil, descontoBps, await lerLimitesDesconto())
+    if (!veredito.ok) return { ok: false, motivo: veredito.motivo }
+
+    await auditoriaRepo.registrar(ctx.usuarioId, 'desconto_autorizar', {
+      descontoBps,
+      autorizadoPorId: usuario.id,
+    })
+    return { ok: true, usuario }
+  },
+
+  // Auditoria é append-only: o contrato só expõe registrar.
+  [IPC.auditoria.registrar]: async (
+    [acao, detalhe]: [string, Record<string, unknown>?],
+    ctx,
+  ) => {
+    await auditoriaRepo.registrar(ctx.usuarioId, acao, detalhe)
   },
 
   [IPC.auth.logout]: async (_args, ctx) => {

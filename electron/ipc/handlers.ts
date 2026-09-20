@@ -24,6 +24,12 @@ import { caixaRepo } from '../db/repositories/caixa.repo'
 import { estoqueRepo } from '../db/repositories/estoque.repo'
 import { fiscalRepo } from '../db/repositories/fiscal.repo'
 import { configRepo } from '../db/repositories/config.repo'
+import {
+  podeAutorizar,
+  LIMITES_PADRAO,
+  CHAVES_LIMITE,
+  type LimitesDesconto,
+} from '@shared/autorizacao'
 import { auditoriaRepo } from '../db/repositories/auditoria.repo'
 import { relatoriosRepo } from '../db/repositories/relatorios.repo'
 import { vendasRepo } from '../db/repositories/vendas.repo'
@@ -42,6 +48,20 @@ import { abrirGaveta } from '../hardware/gaveta'
 
 // Limite padrão de diferença de caixa sem justificativa: R$ 10,00 (RF-11).
 const LIMITE_DIFERENCA_PADRAO = 1000
+
+/** Limites de desconto por perfil, com o padrão quando não há configuração. */
+async function lerLimitesDesconto(): Promise<LimitesDesconto> {
+  const lido = async (chave: string, padrao: number) => {
+    const v = await configRepo.obter(chave)
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 0 ? n : padrao
+  }
+  return {
+    operador: await lido(CHAVES_LIMITE.operador, LIMITES_PADRAO.operador),
+    supervisor: await lido(CHAVES_LIMITE.supervisor, LIMITES_PADRAO.supervisor),
+    admin: await lido(CHAVES_LIMITE.admin, LIMITES_PADRAO.admin),
+  }
+}
 
 export function registerIpc(dataDir: string) {
   const backupsDir = join(dataDir, 'backups')
@@ -68,9 +88,39 @@ export function registerIpc(dataDir: string) {
     return usuario ? { ok: true, usuario } : { ok: false }
   })
 
+  /**
+   * Autoriza um desconto. Confere PIN **e** alçada: a verificação de limite
+   * roda aqui, não só na tela — um renderer comprometido não pode conceder
+   * desconto acima do teto do perfil que autorizou.
+   */
+  ipcMain.handle(IPC.auth.autorizarDesconto, async (_e, pin: string, descontoBps: number) => {
+    const usuario = await usuariosRepo.porPin(pin, ['admin', 'supervisor'])
+    if (!usuario) return { ok: false, motivo: 'PIN sem permissão para autorizar desconto.' }
+
+    const limites = await lerLimitesDesconto()
+    const veredito = podeAutorizar(usuario.perfil, descontoBps, limites)
+    if (!veredito.ok) return { ok: false, motivo: veredito.motivo }
+
+    await auditoriaRepo.registrar(session.get()?.id ?? null, 'desconto_autorizar', {
+      descontoBps,
+      autorizadoPorId: usuario.id,
+    })
+    return { ok: true, usuario }
+  })
+
   ipcMain.handle(IPC.auth.logout, async () => {
     session.set(null)
   })
+
+  // ---- Auditoria (RF-21) — append-only: só registrar, nunca ler nem apagar ----
+  ipcMain.handle(
+    IPC.auditoria.registrar,
+    async (_e, acao: string, detalhe?: Record<string, unknown>) => {
+      // O autor é sempre a sessão do main; o renderer não escolhe em nome de quem
+      // registra, senão a auditoria não valeria nada.
+      await auditoriaRepo.registrar(session.exigir().id, acao, detalhe)
+    },
+  )
 
   // ---- Produtos (RF-14/15/18.1) ----
   ipcMain.handle(IPC.produtos.listar, (_e, incluirInativos?: boolean) =>

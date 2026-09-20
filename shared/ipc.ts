@@ -53,7 +53,22 @@ export interface PdvApi {
     login(login: string, senha: string): Promise<LoginResult>
     trocarOperador(pin: string): Promise<LoginResult>
     autorizarSupervisor(pin: string): Promise<{ ok: boolean; usuario?: Usuario }>
+    /**
+     * Autoriza um desconto: confere o PIN **e** a alçada de quem autorizou.
+     * A regra de limite roda no main — a tela é conveniência, não a guarda.
+     */
+    autorizarDesconto(
+      pin: string,
+      descontoBps: number,
+    ): Promise<{ ok: boolean; usuario?: Usuario; motivo?: string }>
     logout(): Promise<void>
+  }
+  /**
+   * Auditoria (RF-21) é **append-only**: o renderer só registra.
+   * Não há `listar` nem `apagar` neste contrato de propósito.
+   */
+  auditoria: {
+    registrar(acao: string, detalhe?: Record<string, unknown>): Promise<void>
   }
   produtos: {
     listar(incluirInativos?: boolean): Promise<Produto[]>
@@ -151,7 +166,11 @@ export const IPC = {
     login: 'auth:login',
     trocarOperador: 'auth:trocarOperador',
     autorizarSupervisor: 'auth:autorizarSupervisor',
+    autorizarDesconto: 'auth:autorizarDesconto',
     logout: 'auth:logout',
+  },
+  auditoria: {
+    registrar: 'auditoria:registrar',
   },
   produtos: {
     listar: 'produtos:listar',
