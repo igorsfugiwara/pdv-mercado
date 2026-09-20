@@ -3,13 +3,16 @@ import type { Produto, PagamentoInput, FinalizarVendaInput } from '@shared/types
 import { useCaixaStore } from '../store/caixaStore'
 import { useAuthStore } from '../store/authStore'
 import { useCarrinhoStore, FORMAS_PAGAMENTO } from '../store/carrinhoStore'
-import { formatBRL, parseBRL } from '../lib/money'
+import { formatBRL } from '../lib/money'
 import { validarCpf } from '../lib/cpf'
 import AberturaCaixa from '../components/AberturaCaixa'
 import BuscaProdutos from '../components/BuscaProdutos'
 import PagamentoPanel from '../components/PagamentoPanel'
 import BarraAtalhos from '../components/BarraAtalhos'
 import { SeloSimulado, useEstadoFiscal } from '../components/AvisoFiscalSimulado'
+import { useDialogos } from '../components/dialogos'
+import { dialogoAberto } from '../components/Dialogo'
+import Aviso, { useAviso } from '../components/Aviso'
 
 export default function CaixaScreen() {
   const { caixa, carregar } = useCaixaStore()
@@ -17,10 +20,11 @@ export default function CaixaScreen() {
   const cart = useCarrinhoStore()
   const capturaRef = useRef<HTMLInputElement>(null)
   const estadoFiscal = useEstadoFiscal()
+  const dlg = useDialogos()
+  const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
   const [captura, setCaptura] = useState('')
   const [busca, setBusca] = useState(false)
   const [pagamento, setPagamento] = useState(false)
-  const [mensagem, setMensagem] = useState<string | null>(null)
   const [esperaAberta, setEsperaAberta] = useState(false)
   // Linha corrente da lista: é o que F6 cancela e o que o desconto por item usará.
   const [selecionado, setSelecionado] = useState(0)
@@ -43,7 +47,7 @@ export default function CaixaScreen() {
       const rascunho = await window.api.vendas.recuperarRascunho()
       if (rascunho && rascunho.itens.length > 0 && useCarrinhoStore.getState().itens.length === 0) {
         cart.hidratar(rascunho)
-        setMensagem('Venda recuperada após reinício do sistema.')
+        avisar('Venda recuperada após reinício do sistema.')
       }
       await carregarEspera()
     })()
@@ -66,7 +70,7 @@ export default function CaixaScreen() {
     const mult = texto.match(/^(\d+)\s*\*$/)
     if (mult) {
       cart.setMultiplicador(parseInt(mult[1], 10))
-      setMensagem(`Multiplicador: ${mult[1]}×`)
+      avisar(`Multiplicador: ${mult[1]}×`)
       return
     }
 
@@ -76,7 +80,7 @@ export default function CaixaScreen() {
     } else {
       const encontrados = await window.api.produtos.buscar(texto)
       if (encontrados.length === 1) adicionar(encontrados[0])
-      else setMensagem(`Nenhum produto para "${texto}". Use F2 para buscar.`)
+      else avisar(`Nenhum produto para "${texto}". Use F2 para buscar.`)
     }
   }
 
@@ -89,19 +93,25 @@ export default function CaixaScreen() {
     // O índice vem do store: com empilhamento, a linha afetada pode ser uma já
     // existente, e `cart.itens.length` leria o estado anterior ao set.
     setSelecionado(cart.adicionarProduto(p))
-    setMensagem(`+ ${p.descricao}`)
+    avisar(`+ ${p.descricao}`, 'sucesso')
   }
 
   async function lerPesoEAdicionar(p: Produto) {
     const r = await window.api.hardware.lerPeso()
     let peso = r.ok ? r.peso : undefined
     if (!peso) {
-      const manual = prompt(`Peso (kg) para ${p.descricao}:`)
-      peso = manual ? parseFloat(manual.replace(',', '.')) : undefined
+      // Balança ausente ou sem leitura estável: o operador digita o peso.
+      const manual = await dlg.pedirQuantidade({
+        titulo: 'Peso do produto',
+        descricao: `${p.descricao} — informe o peso em quilos.`,
+        casas: 3,
+        minimo: 0.001,
+      })
+      peso = manual ?? undefined
     }
     if (peso && peso > 0) {
       setSelecionado(cart.adicionarProduto(p, { peso }))
-      setMensagem(`+ ${p.descricao} (${peso} kg)`)
+      avisar(`+ ${p.descricao} (${peso} kg)`, 'sucesso')
     }
   }
 
@@ -119,7 +129,7 @@ export default function CaixaScreen() {
     cart.limpar()
     setPagamento(false)
     const doc = r.documentoFiscal
-    setMensagem(
+    avisar(
       `Venda #${r.venda.id} finalizada. Troco ${formatBRL(r.troco)}.` +
         (doc ? ` NFC-e: ${doc.status}.` : ''),
     )
@@ -131,7 +141,9 @@ export default function CaixaScreen() {
       // Overlay aberto captura o teclado. Sem esta guarda, um F10 por baixo da
       // busca abre o pagamento escondido, e as setas mexem na lista de itens em
       // vez de navegar o resultado da busca.
-      if (busca || pagamento || esperaAberta) return
+      // `dialogoAberto()` cobre os diálogos próprios: com um aberto, um bip
+      // acidental não pode disparar F10/F12 por trás dele.
+      if (busca || pagamento || esperaAberta || dialogoAberto()) return
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -147,32 +159,66 @@ export default function CaixaScreen() {
       else if (e.key === 'F8') { e.preventDefault(); pedirCpf() }
       else if (e.key === 'F9') { e.preventDefault(); void sangriaSuprimento() }
       else if (e.key === 'F10') { e.preventDefault(); if (cart.itens.length) setPagamento(true) }
-      else if (e.key === 'F12') { e.preventDefault(); if (confirm('Cancelar venda?')) cart.limpar() }
+      else if (e.key === 'F12') { e.preventDefault(); void cancelarVenda() }
     }
     window.addEventListener('keydown', onKey)
+    // Nada de dependência nova aqui: `dialogoAberto()` é lido dentro do handler,
+    // no momento da tecla — ver a guarda no início de onKey.
+
     return () => window.removeEventListener('keydown', onKey)
     // `usuario` nas deps: após Ctrl+L (troca de operador) o handler precisa
     // recapturar o operador atual, senão F7/F9 gravam sob o operador anterior.
   }, [cart, caixa, usuario, busca, pagamento, esperaAberta]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function pedirCpf() {
-    const cpf = prompt('CPF na nota:')
+  async function pedirCpf() {
+    const cpf = await dlg.pedirTexto({
+      titulo: 'CPF na nota',
+      placeholder: '000.000.000-00',
+      // Valida sem fechar: o operador corrige no mesmo lugar.
+      validar: (v) => (validarCpf(v) ? null : 'CPF inválido.'),
+    })
     if (!cpf) return
-    if (validarCpf(cpf)) cart.setCpf(cpf.replace(/\D/g, ''))
-    else setMensagem('CPF inválido.')
+    cart.setCpf(cpf.replace(/\D/g, ''))
+    avisar('CPF registrado na nota.', 'sucesso')
   }
 
   // RF-04: multiplicador de quantidade para o próximo item bipado.
-  function definirMultiplicador() {
-    const v = prompt('Quantidade (multiplicador do próximo item):', String(cart.multiplicador))
-    if (!v) return
-    const n = parseInt(v.replace(/\D/g, ''), 10)
-    if (n > 0) { cart.setMultiplicador(n); setMensagem(`Multiplicador: ${n}×`) }
+  async function definirMultiplicador() {
+    const n = await dlg.pedirQuantidade({
+      titulo: 'Quantidade',
+      descricao: 'Multiplicador do próximo item bipado.',
+      valorInicial: String(cart.multiplicador),
+      casas: 0,
+      minimo: 1,
+    })
+    if (!n) return
+    cart.setMultiplicador(n)
+    avisar(`Multiplicador: ${n}×`, 'sucesso')
   }
 
-  function pedirDescontoVenda() {
-    const v = prompt('Desconto na venda (R$):')
-    if (v) cart.aplicarDescontoVenda(parseBRL(v))
+  async function pedirDescontoVenda() {
+    const centavos = await dlg.pedirValor({
+      titulo: 'Desconto na venda',
+      descricao: 'Valor em reais a abater do total.',
+    })
+    if (centavos === null) return
+    cart.aplicarDescontoVenda(centavos)
+    avisar(`Desconto de ${formatBRL(centavos)} aplicado.`, 'sucesso')
+  }
+
+  // F12: cancelar a venda inteira é destrutivo — confirmação com foco no Voltar.
+  async function cancelarVenda() {
+    if (cart.itens.length === 0) return
+    const ok = await dlg.confirmar({
+      titulo: 'Cancelar a venda?',
+      descricao: `${cart.itens.length} item(ns) serão descartados. A ação não pode ser desfeita.`,
+      rotuloConfirmar: 'Cancelar venda',
+      destrutivo: true,
+    })
+    if (ok) {
+      cart.limpar()
+      avisar('Venda cancelada.', 'info')
+    }
   }
 
   // RF-06: cancela o item selecionado. Antes só dava para remover o último —
@@ -183,7 +229,7 @@ export default function CaixaScreen() {
     const it = cart.itens[idx]
     cart.removerItem(idx)
     setSelecionado((i) => Math.max(0, Math.min(i, cart.itens.length - 2)))
-    setMensagem(`Item cancelado: ${it.descricao}`)
+    avisar(`Item cancelado: ${it.descricao}`)
   }
 
   // RF-26/27: coloca a venda em espera para atender outra e retomar depois.
@@ -200,7 +246,7 @@ export default function CaixaScreen() {
     })
     cart.limpar()
     await carregarEspera()
-    setMensagem('Venda colocada em espera (F7).')
+    avisar('Venda colocada em espera (F7).')
   }
 
   // RF-26: retoma uma venda em espera; se houver venda atual, ela é parqueada antes.
@@ -210,7 +256,7 @@ export default function CaixaScreen() {
     await window.api.vendas.removerEspera(item.id)
     await carregarEspera()
     setEsperaAberta(false)
-    setMensagem('Venda retomada da espera.')
+    avisar('Venda retomada da espera.')
   }
 
   const totalEmEspera = (input: FinalizarVendaInput) =>
@@ -220,31 +266,41 @@ export default function CaixaScreen() {
   // RF-12: sangria/suprimento exige autorização de supervisor.
   async function sangriaSuprimento() {
     if (!caixa) return
-    const escolha = prompt('Movimentação de caixa — 1 = Sangria (retirada) · 2 = Suprimento (entrada):')
-    if (!escolha) return
-    const tipo = escolha.trim() === '2' ? 'suprimento' : escolha.trim() === '1' ? 'sangria' : null
-    if (!tipo) { setMensagem('Movimentação cancelada.'); return }
-    const valorRaw = prompt(`${tipo === 'sangria' ? 'Sangria' : 'Suprimento'} — valor (R$):`)
-    if (!valorRaw) return
-    const valor = parseBRL(valorRaw)
-    if (valor <= 0) { setMensagem('Valor inválido.'); return }
-    const motivo = prompt('Motivo:') ?? ''
-    const pin = prompt('PIN do supervisor para autorizar:')
+    const tipo = (await dlg.escolher({
+      titulo: 'Movimentação de caixa',
+      opcoes: [
+        { valor: 'sangria', rotulo: 'Sangria', descricao: 'retirada de numerário' },
+        { valor: 'suprimento', rotulo: 'Suprimento', descricao: 'entrada de numerário' },
+      ],
+    })) as 'sangria' | 'suprimento' | null
+    if (!tipo) return
+
+    const rotulo = tipo === 'sangria' ? 'Sangria' : 'Suprimento'
+    const valor = await dlg.pedirValor({ titulo: `${rotulo} — valor`, minimo: 1 })
+    if (valor === null) return
+
+    const motivo = (await dlg.pedirTexto({ titulo: 'Motivo', descricao: rotulo })) ?? ''
+
+    const pin = await dlg.pedirPin({
+      titulo: 'Autorização do supervisor',
+      descricao: `${rotulo} de ${formatBRL(valor)}.`,
+    })
     if (!pin) return
     const auth = await window.api.auth.autorizarSupervisor(pin)
-    if (!auth.ok || !auth.usuario) { setMensagem('Autorização de supervisor negada.'); return }
+    if (!auth.ok || !auth.usuario) { avisar('Autorização de supervisor negada.', 'erro'); return }
     await window.api.caixa.movimentar(caixa.id, tipo, valor, motivo, usuario.id, auth.usuario.id)
     // Abre a gaveta para a movimentação física do numerário (best-effort).
     void window.api.hardware.abrirGaveta()
-    setMensagem(`${tipo === 'sangria' ? 'Sangria' : 'Suprimento'} de ${formatBRL(valor)} registrado.`)
+    avisar(`${rotulo} de ${formatBRL(valor)} registrado.`, 'sucesso')
   }
 
   // Ctrl+L (RF-20): troca rápida de operador por PIN, sem sair do caixa.
   async function trocarOperador() {
-    const pin = prompt('PIN do operador:')
+    const pin = await dlg.pedirPin({ titulo: 'Trocar operador', descricao: 'PIN do operador.' })
     if (!pin) return
     const ok = await useAuthStore.getState().trocarOperador(pin)
-    setMensagem(ok ? 'Operador trocado.' : 'PIN inválido.')
+    if (ok) avisar('Operador trocado.', 'sucesso')
+    else avisar('PIN inválido.', 'erro')
   }
 
   if (!caixa) return <AberturaCaixa />
@@ -352,11 +408,7 @@ export default function CaixaScreen() {
       </div>
 
       <div className="mt-3 space-y-2">
-        {mensagem && (
-          <div className="rounded-md border-l-2 border-l-primary bg-surface-alt px-3 py-2 text-sm text-text">
-            {mensagem}
-          </div>
-        )}
+        <Aviso aviso={aviso} onDispensar={limparAviso} />
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <BarraAtalhos
@@ -427,6 +479,10 @@ export default function CaixaScreen() {
           </div>
         </div>
       )}
+
+      {/* Diálogos do caixa. Renderizam em portal, então a posição aqui não
+          importa para o layout — importa para o ciclo de vida. */}
+      {dlg.elemento}
     </div>
   )
 }

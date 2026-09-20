@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { RelatorioVendas, LinhaCurvaAbc } from '@shared/types'
 import { formatBRL } from '../lib/money'
+import Aviso, { useAviso } from '../components/Aviso'
 
 // RF-22..25: vendas por período/forma/operador/produto/grupo, curva ABC, export CSV.
 type Aba = 'resumo' | 'forma' | 'operador' | 'produto' | 'grupo' | 'abc'
@@ -36,15 +37,19 @@ export default function RelatoriosScreen() {
 
   useEffect(() => { void carregar() }, [carregar])
 
+  const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
+
   async function exportar() {
     const dados = linhasParaExport(aba, rel, abc)
     if (!dados.length) return
     const r = await window.api.relatorios.exportarCsv(dados, `relatorio-${aba}-${de}_${ate}.csv`)
-    if (r.caminho) alert(`Exportado para ${r.caminho}`)
+    if (r.caminho) avisar(`Exportado para ${r.caminho}`, 'sucesso')
   }
 
   return (
     <div className="p-4">
+      <div className="mb-4"><Aviso aviso={aviso} onDispensar={limparAviso} /></div>
+
       <div className="mb-4 flex items-end gap-3">
         <h1 className="font-display text-2xl text-primary">Relatórios</h1>
         <div className="ml-4">

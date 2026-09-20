@@ -5,6 +5,8 @@ import { useAuthStore } from '../store/authStore'
 import { formatBRL, parseBRL } from '../lib/money'
 import ProdutoForm from '../components/ProdutoForm'
 import { ehWeb } from '../lib/plataforma'
+import { useDialogos } from '../components/dialogos'
+import Aviso, { useAviso } from '../components/Aviso'
 
 export default function ProdutosScreen() {
   const usuario = useAuthStore((s) => s.usuario)!
@@ -18,13 +20,26 @@ export default function ProdutosScreen() {
   }
   useEffect(() => { void recarregar() }, [incluirInativos]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const dlg = useDialogos()
+  const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
+
   const filtrados = produtos.filter((p) =>
     [p.descricao, p.ean, p.codigoInterno].some((c) => c?.toLowerCase().includes(busca.toLowerCase())),
   )
 
   async function excluir(p: Produto) {
+    // Exclusão é destrutiva e antes acontecia direto no clique.
+    const ok = await dlg.confirmar({
+      titulo: 'Excluir produto?',
+      descricao: `${p.descricao} será removido do cadastro.`,
+      rotuloConfirmar: 'Excluir',
+      destrutivo: true,
+    })
+    if (!ok) return
+
     const r = await window.api.produtos.excluir(p.id, usuario.id)
-    if (!r.ok) alert(r.motivo)
+    if (!r.ok) avisar(r.motivo ?? 'Não foi possível excluir.', 'erro')
+    else avisar(`${p.descricao} excluído.`, 'sucesso')
     await recarregar()
   }
 
@@ -33,11 +48,23 @@ export default function ProdutosScreen() {
     // de arquivos e envia o conteúdo, então não há caminho a pedir.
     let caminho = ''
     if (!ehWeb()) {
-      caminho = prompt('Caminho do arquivo CSV:') ?? ''
-      if (!caminho) return
+      const informado = await dlg.pedirTexto({
+        titulo: 'Importar CSV',
+        descricao: 'Caminho do arquivo no disco.',
+        placeholder: '/home/usuario/produtos.csv',
+        validar: (v) => (v.trim().endsWith('.csv') ? null : 'Informe um arquivo .csv.'),
+      })
+      if (!informado) return
+      caminho = informado
     }
     const r = await window.api.produtos.importarCsv(caminho)
-    alert(`Importados: ${r.importados}\nErros:\n${r.erros.join('\n') || 'nenhum'}`)
+    // Resultado de importação pode ter erro linha a linha: fica até dispensar.
+    const houveErro = r.erros.length > 0
+    avisar(
+      `Importados: ${r.importados}.` +
+        (houveErro ? `\nErros:\n${r.erros.join('\n')}` : ' Nenhum erro.'),
+      houveErro ? 'erro' : 'sucesso',
+    )
     await recarregar()
   }
 
@@ -65,6 +92,8 @@ export default function ProdutosScreen() {
           </button>
         </div>
       </header>
+
+      <div className="mb-4"><Aviso aviso={aviso} onDispensar={limparAviso} /></div>
 
       <table className="w-full text-sm">
         <thead className="text-left text-xs uppercase text-text-muted">
@@ -114,6 +143,7 @@ export default function ProdutosScreen() {
           onFechar={() => setEditando(null)}
         />
       )}
+      {dlg.elemento}
     </div>
   )
 }

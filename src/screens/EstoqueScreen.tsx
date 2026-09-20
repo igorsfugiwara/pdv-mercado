@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { Produto } from '@shared/types'
 import { useAuthStore } from '../store/authStore'
+import { useDialogos } from '../components/dialogos'
+import Aviso, { useAviso } from '../components/Aviso'
 
 export default function EstoqueScreen() {
   const usuario = useAuthStore((s) => s.usuario)!
   const [alertas, setAlertas] = useState<Produto[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
+
+  const dlg = useDialogos()
+  const { aviso, mostrar: avisar, limpar: limparAviso } = useAviso()
 
   async function recarregar() {
     setAlertas(await window.api.estoque.alertasMinimo())
@@ -14,24 +19,44 @@ export default function EstoqueScreen() {
   useEffect(() => { void recarregar() }, [])
 
   async function entrada(p: Produto) {
-    const qtd = prompt(`Entrada de mercadoria — ${p.descricao}\nQuantidade:`)
+    const qtd = await dlg.pedirQuantidade({
+      titulo: 'Entrada de mercadoria',
+      descricao: p.descricao,
+      minimo: 0.001,
+    })
     if (!qtd) return
-    const motivo = prompt('Motivo/NF de referência:') ?? ''
-    await window.api.estoque.entrada(p.id, parseFloat(qtd.replace(',', '.')), usuario.id, motivo)
+    const motivo = (await dlg.pedirTexto({
+      titulo: 'Motivo / NF de referência',
+      descricao: `Entrada de ${qtd} em ${p.descricao}.`,
+    })) ?? ''
+    await window.api.estoque.entrada(p.id, qtd, usuario.id, motivo)
     await recarregar()
+    avisar(`Entrada de ${qtd} registrada em ${p.descricao}.`, 'sucesso')
   }
 
   async function ajuste(p: Produto) {
-    const saldo = prompt(`Ajuste de inventário — ${p.descricao}\nNovo saldo:`, String(p.estoqueAtual))
-    if (saldo == null) return
-    const motivo = prompt('Motivo do ajuste:') ?? ''
-    await window.api.estoque.ajuste(p.id, parseFloat(saldo.replace(',', '.')), usuario.id, motivo)
+    // Ajuste aceita zero: inventário pode zerar um item.
+    const saldo = await dlg.pedirQuantidade({
+      titulo: 'Ajuste de inventário',
+      descricao: `${p.descricao} — saldo atual: ${p.estoqueAtual}.`,
+      valorInicial: String(p.estoqueAtual),
+      minimo: 0,
+    })
+    if (saldo === null) return
+    const motivo = (await dlg.pedirTexto({
+      titulo: 'Motivo do ajuste',
+      descricao: `Novo saldo: ${saldo}.`,
+    })) ?? ''
+    await window.api.estoque.ajuste(p.id, saldo, usuario.id, motivo)
     await recarregar()
+    avisar(`Saldo de ${p.descricao} ajustado para ${saldo}.`, 'sucesso')
   }
 
   return (
     <div className="p-4">
       <h1 className="mb-4 font-display text-2xl text-primary">Estoque</h1>
+
+      <div className="mb-4"><Aviso aviso={aviso} onDispensar={limparAviso} /></div>
 
       {alertas.length > 0 && (
         <div className="card mb-4 border-warning/50">
@@ -74,6 +99,7 @@ export default function EstoqueScreen() {
           ))}
         </tbody>
       </table>
+      {dlg.elemento}
     </div>
   )
 }

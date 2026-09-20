@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { Produto } from '@shared/types'
 import { formatBRL } from '../lib/money'
 
+/** Exportado para o teste poder esperar exatamente este intervalo. */
+export const ATRASO_BUSCA_MS = 120
+
 // RF-02: busca por EAN, código interno ou nome (autocomplete).
 export default function BuscaProdutos({
   onSelecionar,
@@ -19,11 +22,25 @@ export default function BuscaProdutos({
     inputRef.current?.focus()
   }, [])
 
+  // Debounce de 120 ms (RF-02). O `vivo` sozinho evitava o set tardio, mas não
+  // evitava a consulta: digitando "arroz" saíam cinco idas ao banco. O atraso é
+  // curto o bastante para não ser percebido como lentidão.
   useEffect(() => {
-    if (!termo) return setResultados([])
+    if (!termo) {
+      setResultados([])
+      return
+    }
     let vivo = true
-    void window.api.produtos.buscar(termo).then((r) => vivo && setResultados(r))
-    return () => { vivo = false }
+    const t = setTimeout(() => {
+      void window.api.produtos.buscar(termo).then((r) => {
+        if (vivo) setResultados(r)
+      })
+    }, ATRASO_BUSCA_MS)
+
+    return () => {
+      vivo = false
+      clearTimeout(t)
+    }
   }, [termo])
 
   function onKey(e: React.KeyboardEvent) {
