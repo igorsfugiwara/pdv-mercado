@@ -38,7 +38,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 - **Relatórios** — vendas por período/forma/operador/produto/grupo e curva ABC, com as
   agregações testadas.
 - **Auth argon2id + PIN**, auditoria append-only.
-- **166 testes passando**, incluindo 27 contra Postgres real (PGlite).
+- **191 testes passando**, incluindo 27 contra Postgres real (PGlite).
 
 ### O que impede o operacional de ser impecável
 
@@ -47,8 +47,8 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 | 1 | ~~**18 `prompt()`/`alert()`/`confirm()` no renderer.**~~ **Resolvido na fatia 02.** CPF, multiplicador, desconto, peso, sangria, PIN de supervisor — tudo em diálogo nativo. Trava a thread, ignora o tema, não dá para navegar por teclado de forma previsível e some do fluxo do operador. | 10 em `CaixaScreen.tsx`, 4 em `EstoqueScreen.tsx`, 3 em `ProdutosScreen.tsx`, 1 em `RelatoriosScreen.tsx` | **02** |
 | 2 | ~~**Não há tela de fechamento de caixa.**~~ **Resolvido na fatia 04.** `caixaStore.fechar()` existe e o repositório calcula a diferença, mas nenhuma tela chama. Um turno começa e não termina. | `src/store/caixaStore.ts:20`, sem chamador em `src/screens/` | **04** |
 | 3 | **Parser de etiqueta de balança órfão.** `parseEanBalanca()` está escrito e testado, mas `processarCaptura()` não o chama — bipar etiqueta de balança (EAN-13 prefixo 2) simplesmente não acha o produto. | `electron/hardware/balanca.ts:103` definido; zero chamadas fora do próprio módulo | **05** |
-| 4 | **Desconto sem limite por perfil (RF-05).** `pedirDescontoVenda()` aceita qualquer valor de qualquer operador, sem autorização. Não há desconto por item na UI, embora o tipo suporte. | `CaixaScreen.tsx:155` | **03** |
-| 5 | **Cancelamento de item sem autorização (RF-06)** e só do último item — não dá para cancelar um item no meio da compra. | `CaixaScreen.tsx:161` | **03** |
+| 4 | ~~**Desconto sem limite por perfil (RF-05).**~~ **Resolvido na fatia 03.** `pedirDescontoVenda()` aceita qualquer valor de qualquer operador, sem autorização. Não há desconto por item na UI, embora o tipo suporte. | `CaixaScreen.tsx:155` | **03** |
+| 5 | ~~**Cancelamento de item sem autorização (RF-06)**~~ **Resolvido na fatia 03.** e só do último item — não dá para cancelar um item no meio da compra. | `CaixaScreen.tsx:161` | **03** |
 | 6 | **Sem painel de abertura** — o alerta de estoque mínimo (RF-18) não tem onde aparecer. `estoque.alertasMinimo()` existe e ninguém consome no lugar certo. | não há `DashboardScreen` | **06** |
 | 7 | ~~**Fiscal do desktop só instancia `AcbrNfceProvider`.**~~ **Resolvido na fatia 01.** Sem a lib nativa e o certificado, o módulo fiscal não inicializa — ou seja, hoje não dá para rodar o app inteiro numa máquina de teste. | `electron/fiscal/index.ts:13` | **01** |
 | 8 | ~~**Busca sem debounce**~~ **Resolvido na fatia 02.** — dispara uma consulta por tecla digitada. | `src/components/BuscaProdutos.tsx:23` | **02** |
@@ -71,7 +71,7 @@ primeiro porque sem ela não dá para exercitar nenhuma das outras ponta a ponta
 |---|---|---|---|
 | **01** ✅ | [Fiscal Simulado e Ambiente de Teste](01%20-%20Fiscal%20Simulado%20e%20Ambiente%20de%20Teste.md) | App sobe e vende sem ACBrLib, certificado ou periférico. Provider fiscal escolhido por configuração. | — |
 | **02** ✅ | [Diálogos do Caixa](02%20-%20Diálogos%20do%20Caixa.md) | Todo `prompt/alert/confirm` vira diálogo próprio, operável por teclado, sem travar a thread. | 01 |
-| **03** | [Autorização e Limites](03%20-%20Autorização%20e%20Limites.md) | Limite de desconto por perfil, autorização por PIN acima do limite, cancelamento de item arbitrário — tudo auditado. | 02 |
+| **03** ✅ | [Autorização e Limites](03%20-%20Autorização%20e%20Limites.md) | Limite de desconto por perfil, autorização por PIN acima do limite, cancelamento de item arbitrário — tudo auditado. | 02 |
 | **04** ✅ | [Fechamento de Caixa](04%20-%20Fechamento%20de%20Caixa.md) | Conferência cega, apuração de diferença, comprovante do turno. Fecha o ciclo abertura→fechamento. | — |
 | **05** | [Etiqueta de Balança](05%20-%20Etiqueta%20de%20Balança.md) | Bipar etiqueta de balança resolve produto e peso/valor. Liga o parser órfão. | 02 |
 | **06** | [Painel e Estoque Mínimo](06%20-%20Painel%20e%20Estoque%20Mínimo.md) | Tela inicial com o estado do turno e os alertas que exigem ação. | 04 |
@@ -86,6 +86,12 @@ construir duas vezes: uma no diálogo nativo, outra quando ele for substituído.
 
 A **07** vem por último de propósito: o teste de aceite só é honesto quando existe o
 fluxo inteiro para exercitar.
+
+> **Nota de execução (fatia 03, entregue):** a regra de autorização ficou em
+> `shared/autorizacao.ts` e é aplicada nos **três** pontos: tela (decide se pede PIN),
+> handler do Electron e router da web (decidem se concedem). Manter os três em sincronia
+> é o custo de ter dois alvos; a alternativa — confiar na tela — deixaria o limite
+> contornável por um renderer comprometido.
 
 > **Nota de execução (fatia 02, entregue):** o ambiente de teste de componente é
 > **happy-dom**, não jsdom — jsdom faz `require()` de um módulo ESM e não carrega sob o
