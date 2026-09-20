@@ -6,6 +6,7 @@ import { initDb } from './db/index'
 import { seedDatabase } from './db/seed'
 import { registerIpc } from './ipc/handlers'
 import { initFiscal } from './fiscal'
+import { verificarRelogio } from './services/relogioService'
 import { backupAgora } from './services/backup'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -36,6 +37,8 @@ async function bootstrap() {
   if (!app.isPackaged) await seedDatabase() // seeds só em desenvolvimento
   registerIpc(DATA_DIR)
   await initFiscal((msg) => win?.webContents.send('fiscal:alerta', msg))
+  // Confere o relógio no boot: é quando a bateria morta aparece.
+  await verificarRelogio()
   agendarBackupDiario()
 }
 

@@ -84,6 +84,9 @@ const api: PdvApi = {
     abrirGaveta: () => invoke(IPC.hardware.abrirGaveta),
     lerPeso: () => invoke(IPC.hardware.lerPeso),
   },
+  relogio: {
+    verificar: () => invoke(IPC.relogio.verificar),
+  },
   config: {
     obter: (chave) => invoke(IPC.config.obter, chave),
     definir: (chave, valor) => invoke(IPC.config.definir, chave, valor),

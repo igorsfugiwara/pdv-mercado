@@ -246,6 +246,16 @@ export interface StatusSefaz {
   ambiente: 'homologacao' | 'producao'
   tempoRespostaMs: number | null
   mensagem: string
+  /**
+   * Data-hora do servidor da SEFAZ (ISO-8601), quando o provider consegue
+   * obtê-la. É a melhor referência de relógio que existe para este sistema:
+   * é exatamente o relógio contra o qual a nota será validada.
+   *
+   * O provider simulado **não** preenche — inventar a hora local aqui faria o
+   * desvio ser sempre zero e esconderia justamente o problema que a fatia 09
+   * existe para achar.
+   */
+  horaServidor?: string | null
 }
 
 /** Implementação fiscal em uso. `simulado` é o padrão enquanto a emissão real não for homologada. */

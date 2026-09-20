@@ -24,6 +24,7 @@ import type {
   FiltroVendas,
   ResultadoCancelamentoVenda,
 } from './types'
+import type { VereditoRelogio } from './relogio'
 
 export interface LoginResult {
   ok: boolean
@@ -167,6 +168,10 @@ export interface PdvApi {
     abrirGaveta(): Promise<PeripheralTestResult>
     lerPeso(): Promise<{ ok: boolean; peso?: number; erro?: string }>
   }
+  /** Integridade do relógio (RF-26/27) — ver shared/relogio.ts. */
+  relogio: {
+    verificar(): Promise<VereditoRelogio>
+  }
   config: {
     obter(chave: string): Promise<string | null>
     definir(chave: string, valor: string): Promise<void>
@@ -249,6 +254,9 @@ export const IPC = {
     testarBalanca: 'hardware:testarBalanca',
     abrirGaveta: 'hardware:abrirGaveta',
     lerPeso: 'hardware:lerPeso',
+  },
+  relogio: {
+    verificar: 'relogio:verificar',
   },
   config: {
     obter: 'config:obter',

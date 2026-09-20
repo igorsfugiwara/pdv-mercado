@@ -197,6 +197,9 @@ export const apiWeb: PdvApi = {
     lerPeso: async () => ({ ok: false, erro: INDISPONIVEL_HARDWARE }),
   },
 
+  relogio: {
+    verificar: () => rpc(IPC.relogio.verificar),
+  },
   config: {
     obter: (chave) => rpc(IPC.config.obter, chave),
     definir: (chave, valor) => rpc(IPC.config.definir, chave, valor),

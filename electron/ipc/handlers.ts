@@ -35,6 +35,7 @@ import { auditoriaRepo } from '../db/repositories/auditoria.repo'
 import { relatoriosRepo } from '../db/repositories/relatorios.repo'
 import { vendasRepo } from '../db/repositories/vendas.repo'
 import { finalizarVenda, cancelarVenda } from '../services/vendaService'
+import { verificarRelogio } from '../services/relogioService'
 import { importarProdutosCsv } from '../services/csvImport'
 import { backupAgora, exportarPara } from '../services/backup'
 import {
@@ -363,6 +364,9 @@ export function registerIpc(dataDir: string) {
     await auditoriaRepo.registrar(session.get()?.id ?? null, 'fiscal_modo_falha', { modo })
     return getEstadoFiscal()
   })
+
+  // ---- Relógio (RF-26/27) ----
+  ipcMain.handle(IPC.relogio.verificar, () => verificarRelogio())
 
   // ---- Relatórios (RF-22..25) ----
   ipcMain.handle(IPC.relatorios.vendas, (_e, filtro: RelatorioVendasFiltro) =>

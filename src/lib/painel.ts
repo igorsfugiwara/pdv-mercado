@@ -1,4 +1,5 @@
 import type { Caixa, Produto, DocumentoFiscal, MediaDiariaProduto } from '@shared/types'
+import type { VereditoRelogio } from '@shared/relogio'
 
 /**
  * Lógica pura do painel (RF-18).
@@ -32,6 +33,8 @@ export interface EntradaAlertas {
   inativosPorFiscal: Produto[]
   caixa: Caixa | null
   emEspera: unknown[]
+  /** Veredito da última verificação de relógio (fatia 09). */
+  relogio?: VereditoRelogio | null
   agora?: Date
 }
 
@@ -42,6 +45,19 @@ export interface EntradaAlertas {
 export function montarAlertas(e: EntradaAlertas): Alerta[] {
   const agora = e.agora ?? new Date()
   const alertas: Alerta[] = []
+
+  // Relógio errado tem consequência fiscal direta: entra na mesma classe de
+  // gravidade da contingência, e antes dela por ser causa e não sintoma.
+  if (e.relogio && e.relogio.gravidade !== 'ok') {
+    alertas.push({
+      id: 'relogio',
+      titulo: 'Relógio da máquina fora de hora',
+      detalhe: e.relogio.mensagem,
+      gravidade: 'alta',
+      rota: '/config',
+      quantidade: 1,
+    })
+  }
 
   if (e.contingencia.length > 0) {
     alertas.push({

@@ -56,10 +56,11 @@ export default function PainelScreen() {
       api.caixa.atual(),
     ])
 
-    const [emEspera, relHoje, medias] = await Promise.all([
+    const [emEspera, relHoje, medias, relogio] = await Promise.all([
       api.vendas.recuperarEspera(),
       api.relatorios.vendas({ de: hoje, ate: hoje }),
       api.relatorios.mediaDiariaProdutos(diasAtras(30), hoje),
+      api.relogio.verificar(),
     ])
 
     const inativosPorFiscal = todosProdutos.filter(
@@ -76,6 +77,7 @@ export default function PainelScreen() {
         inativosPorFiscal,
         caixa,
         emEspera,
+        relogio,
       }),
       estoque: estimarDiasRestantes(estoqueMinimo, medias),
       caixa,
