@@ -17,6 +17,11 @@ import { estoqueRepo } from './repos/estoque.repo'
 import { fiscalRepo } from './repos/fiscal.repo'
 import { configRepo } from './repos/config.repo'
 import {
+  compararMonotonico,
+  proximoUltimoVisto,
+  CHAVES_RELOGIO,
+} from '@shared/relogio'
+import {
   podeAutorizar,
   LIMITES_PADRAO,
   CHAVES_LIMITE,
@@ -361,6 +366,23 @@ const handlers: Record<string, Handler> = {
 
   // ---- Relatórios (RF-22..25) ----
   [IPC.relatorios.vendas]: ([filtro]: [RelatorioVendasFiltro]) => relatoriosRepo.vendas(filtro),
+  /**
+   * Relógio (fatia 09) — só a checagem monotônica, que é a que independe de
+   * rede. Sem este handler o adapter web chamava um canal inexistente.
+   */
+  [IPC.relogio.verificar]: async () => {
+    const agora = Date.now()
+    const bruto = await configRepo.obter(CHAVES_RELOGIO.ultimoVisto)
+    const ultimoVisto = bruto ? Number(bruto) : null
+
+    const veredito = compararMonotonico(agora, ultimoVisto)
+    await configRepo.definir(
+      CHAVES_RELOGIO.ultimoVisto,
+      String(proximoUltimoVisto(agora, ultimoVisto)),
+    )
+    return veredito
+  },
+
   [IPC.relatorios.mediaDiariaProdutos]: ([de, ate]: [string, string]) =>
     relatoriosRepo.mediaDiariaPorProduto(de, ate),
   [IPC.relatorios.curvaAbc]: ([de, ate]: [string, string]) => relatoriosRepo.curvaAbc(de, ate),
@@ -374,6 +396,12 @@ const handlers: Record<string, Handler> = {
 
 /** Canais liberados sem sessão. Todo o resto exige cookie válido. */
 const PUBLICOS = new Set<string>([IPC.auth.login])
+
+/**
+ * Exposto só para o teste de paridade (tests/paridade-contrato.test.ts), que
+ * compara os canais atendidos aqui com os declarados no contrato.
+ */
+export const handlersParaTeste: Readonly<Record<string, Handler>> = handlers
 
 export async function despachar(canal: string, args: unknown[], ctx: Contexto) {
   const handler = handlers[canal]

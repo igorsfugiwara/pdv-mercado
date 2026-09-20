@@ -25,6 +25,12 @@ export default defineConfig({
 
   reporter: process.env.CI ? [['github'], ['list']] : [['list']],
 
+  // Dois alvos, duas suítes. `--project=web` roda só a web.
+  projects: [
+    { name: 'desktop', testMatch: /tests-e2e\/(?!web\/).*\.spec\.ts/ },
+    { name: 'web', testMatch: /tests-e2e\/web\/.*\.spec\.ts/ },
+  ],
+
   use: {
     // Trace só do que falhou: trace de execução verde é lixo que enche storage.
     trace: 'retain-on-failure',

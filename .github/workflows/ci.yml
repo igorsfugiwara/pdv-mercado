@@ -41,10 +41,18 @@ jobs:
       - name: Build do alvo desktop
         run: npx vite build
 
+      # O projeto `web` usa Chromium; o `desktop` usa o Electron do próprio
+      # projeto e não precisa de download.
+      - name: Navegador do Playwright
+        run: npx playwright install --with-deps chromium
+
       # Electron precisa de display virtual no Linux. O `--no-sandbox` do
       # launcher cobre a ausência do helper SUID no runner.
-      - name: E2E (Playwright + Electron)
-        run: xvfb-run -a npm run test:e2e
+      - name: E2E desktop (Electron)
+        run: xvfb-run -a npx playwright test --project=desktop
+
+      - name: E2E web (Chromium + Postgres em processo)
+        run: xvfb-run -a npx playwright test --project=web
 
       # Só do que falhou: artefato de execução verde é lixo que enche o storage.
       - name: Artefatos da falha
