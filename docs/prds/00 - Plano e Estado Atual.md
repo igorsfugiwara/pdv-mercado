@@ -38,7 +38,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 - **Relatórios** — vendas por período/forma/operador/produto/grupo e curva ABC, com as
   agregações testadas.
 - **Auth argon2id + PIN**, auditoria append-only.
-- **232 testes passando**, incluindo 27 contra Postgres real (PGlite).
+- **297 testes passando**, incluindo 27 contra Postgres real (PGlite).
 
 ### O que impede o operacional de ser impecável
 
@@ -84,10 +84,10 @@ sem caminho na tela, e o que só aparece com o sistema em uso por dias.
 
 | Fatia | PRD | Entrega | Depende de |
 |---|---|---|---|
-| **08** | [Cancelamento de Venda Finalizada](08%20-%20Cancelamento%20de%20Venda%20Finalizada.md) | Achar uma venda, cancelar com autorização, e cancelar a NFC-e junto. | 03, 07 |
-| **09** | [Relógio e Integridade Temporal](09%20-%20Relógio%20e%20Integridade%20Temporal.md) | O PDV percebe relógio errado antes de a SEFAZ recusar a nota. | 06 |
-| **10** | [Contingência com Prazo Visível](10%20-%20Contingência%20com%20Prazo%20Visível.md) | Documento parado escala com o tempo, em vez de envelhecer em silêncio. | 06 |
-| **11** | [Aceite da Versão Web](11%20-%20Aceite%20da%20Versão%20Web.md) | O roteiro da 07 rodando contra a web, mais teste de paridade de contrato. | 07 |
+| **08** ✅ | [Cancelamento de Venda Finalizada](08%20-%20Cancelamento%20de%20Venda%20Finalizada.md) | Achar uma venda, cancelar com autorização, e cancelar a NFC-e junto. | 03, 07 |
+| **09** ✅ | [Relógio e Integridade Temporal](09%20-%20Relógio%20e%20Integridade%20Temporal.md) | O PDV percebe relógio errado antes de a SEFAZ recusar a nota. | 06 |
+| **10** ✅ | [Contingência com Prazo Visível](10%20-%20Contingência%20com%20Prazo%20Visível.md) | Documento parado escala com o tempo, em vez de envelhecer em silêncio. | 06 |
+| **11** ✅ | [Aceite da Versão Web](11%20-%20Aceite%20da%20Versão%20Web.md) | O roteiro da 07 rodando contra a web, mais teste de paridade de contrato. | 07 |
 
 ### Por que esta ordem
 
@@ -98,6 +98,20 @@ construir duas vezes: uma no diálogo nativo, outra quando ele for substituído.
 
 A **07** vem por último de propósito: o teste de aceite só é honesto quando existe o
 fluxo inteiro para exercitar.
+
+> **Nota de execução (segunda rodada, fatias 08 a 11):** o padrão que rendeu quatro
+> defeitos na primeira rodada se repetiu — regra pronta sem caminho na tela (08) e canal
+> num alvo só (11). O teste de paridade de contrato, que é unitário e barato, achou na
+> primeira execução que `relogio:verificar` existia no adapter web e não no router.
+>
+> Dois defeitos meus, achados pela suíte na fatia 10: as colunas novas foram parar na
+> tabela errada do schema web (`vendas` também tem `cancelada_em`), e — mais grave — tanto
+> `server/setup.ts` quanto dois testes liam `0000_init.sql` por **nome fixo**, então
+> migração nova nunca seria aplicada na web e o deploy subiria com o schema velho. Os três
+> agora aplicam todos os arquivos de `migrations/` em ordem.
+>
+> Lição acumulada: **tudo que é duplicado entre desktop e web precisa de um teste que
+> compare os dois lados**, porque o typecheck só cobra quando o tipo é exigido.
 
 > **Nota de execução (fatia 07, entregue):** o E2E achou quatro defeitos que nenhum teste
 > unitário pegaria, porque só existem com o app inteiro de pé — e um deles quebrava o app
