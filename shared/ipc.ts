@@ -14,6 +14,9 @@ import type {
   ResultadoVenda,
   StatusSefaz,
   StatusDocumentoFiscal,
+  EstadoFiscal,
+  ProviderFiscal,
+  ModoFalhaFiscal,
   RelatorioVendas,
   LinhaCurvaAbc,
 } from './types'
@@ -113,6 +116,12 @@ export interface PdvApi {
     listarDocumentos(status?: StatusDocumentoFiscal): Promise<DocumentoFiscal[]>
     filaContingencia(): Promise<DocumentoFiscal[]>
     reprocessarFila(): Promise<{ processados: number }>
+    /** RF-30: qual provider está ativo e se os documentos têm valor fiscal. */
+    estado(): Promise<EstadoFiscal>
+    /** Troca o provider (perfil Admin). Vale a partir do próximo boot. */
+    definirProvider(provider: ProviderFiscal): Promise<EstadoFiscal>
+    /** Injeta falha no simulado, para exercitar contingência e rejeição. */
+    definirModoFalha(modo: ModoFalhaFiscal): Promise<EstadoFiscal>
   }
   relatorios: {
     vendas(filtro: RelatorioVendasFiltro): Promise<RelatorioVendas>
@@ -186,6 +195,9 @@ export const IPC = {
     listarDocumentos: 'fiscal:listarDocumentos',
     filaContingencia: 'fiscal:filaContingencia',
     reprocessarFila: 'fiscal:reprocessarFila',
+    estado: 'fiscal:estado',
+    definirProvider: 'fiscal:definirProvider',
+    definirModoFalha: 'fiscal:definirModoFalha',
   },
   relatorios: {
     vendas: 'relatorios:vendas',

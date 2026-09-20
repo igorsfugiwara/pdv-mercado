@@ -156,6 +156,20 @@ export const apiWeb: PdvApi = {
     listarDocumentos: (status) => rpc(IPC.fiscal.listarDocumentos, status),
     filaContingencia: () => rpc(IPC.fiscal.filaContingencia),
     reprocessarFila: () => rpc(IPC.fiscal.reprocessarFila),
+    // A web é simulada por definição (não há ACBrLib numa serverless function),
+    // então o estado é constante e trocar de provider não se aplica.
+    estado: async () => ({
+      provider: 'simulado' as const,
+      simulado: true,
+      motivoFallback: null,
+      modoFalha: 'nenhuma' as const,
+    }),
+    definirProvider: async () => {
+      throw new Error('A versão web roda sempre em modo simulado.')
+    },
+    definirModoFalha: async () => {
+      throw new Error('A versão web roda sempre em modo simulado.')
+    },
   },
 
   relatorios: {

@@ -8,6 +8,7 @@ import type {
 // Type-only: some a compilação, então `server/` não carrega nada de `electron/`
 // em runtime — só reaproveita o contrato da seção 7.2 do PRD.
 import type { FiscalProvider } from '../electron/fiscal/FiscalProvider'
+import { montarChaveNfce } from '@shared/chaveFiscal'
 
 /**
  * SIMULAÇÃO fiscal para a versão web.
@@ -29,7 +30,7 @@ export class FiscalWebSimulado implements FiscalProvider {
   }
 
   async emitir(venda: VendaFiscal): Promise<ResultadoEmissao> {
-    const chave = this.montarChave(venda.vendaId, 1)
+    const chave = this.chave(venda.vendaId)
     return {
       status: 'autorizada',
       chave,
@@ -40,7 +41,7 @@ export class FiscalWebSimulado implements FiscalProvider {
   }
 
   async retransmitir(doc: DocumentoFiscal): Promise<ResultadoEmissao> {
-    const chave = doc.chaveAcesso ?? this.montarChave(doc.vendaId, 1)
+    const chave = doc.chaveAcesso ?? this.chave(doc.vendaId)
     return {
       status: 'autorizada',
       chave,
@@ -69,33 +70,9 @@ export class FiscalWebSimulado implements FiscalProvider {
     return { valido: false, expiraEm: null }
   }
 
-  /** Layout da chave (NT 2015/002): cUF AAMM CNPJ mod serie nNF tpEmis cNF cDV. */
-  private montarChave(numero: number, serie: number, tpEmis = 1): string {
-    const agora = new Date()
-    const aamm = `${String(agora.getFullYear()).slice(2)}${String(agora.getMonth() + 1).padStart(2, '0')}`
-    const cNF = String(Math.floor(Math.random() * 1e8)).padStart(8, '0')
-    const base =
-      this.uf +
-      aamm +
-      this.cnpj +
-      '65' +
-      String(serie).padStart(3, '0') +
-      String(numero).padStart(9, '0') +
-      String(tpEmis) +
-      cNF
-    return base + this.dvModulo11(base)
-  }
-
-  /** DV da chave: módulo 11 com pesos 2..9 cíclicos, da direita para a esquerda. */
-  private dvModulo11(base: string): string {
-    let soma = 0
-    let peso = 2
-    for (let i = base.length - 1; i >= 0; i--) {
-      soma += Number(base[i]) * peso
-      peso = peso === 9 ? 2 : peso + 1
-    }
-    const resto = soma % 11
-    return String(resto === 0 || resto === 1 ? 0 : 11 - resto)
+  /** Gerador único do repositório — ver shared/chaveFiscal.ts. */
+  private chave(numero: number, tpEmis: 1 | 9 = 1): string {
+    return montarChaveNfce({ uf: this.uf, cnpj: this.cnpj, numero, serie: 1, tpEmis })
   }
 
   private qrCode(chave: string): string {

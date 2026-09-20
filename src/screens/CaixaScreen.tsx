@@ -9,12 +9,14 @@ import AberturaCaixa from '../components/AberturaCaixa'
 import BuscaProdutos from '../components/BuscaProdutos'
 import PagamentoPanel from '../components/PagamentoPanel'
 import BarraAtalhos from '../components/BarraAtalhos'
+import { SeloSimulado, useEstadoFiscal } from '../components/AvisoFiscalSimulado'
 
 export default function CaixaScreen() {
   const { caixa, carregar } = useCaixaStore()
   const usuario = useAuthStore((s) => s.usuario)!
   const cart = useCarrinhoStore()
   const capturaRef = useRef<HTMLInputElement>(null)
+  const estadoFiscal = useEstadoFiscal()
   const [captura, setCaptura] = useState('')
   const [busca, setBusca] = useState(false)
   const [pagamento, setPagamento] = useState(false)
@@ -355,21 +357,26 @@ export default function CaixaScreen() {
             {mensagem}
           </div>
         )}
-        <BarraAtalhos
-          atalhos={[
-            { tecla: 'F2', rotulo: 'Buscar' },
-            { tecla: 'F3', rotulo: 'Quantidade' },
-            { tecla: 'F4', rotulo: 'Desconto' },
-            { tecla: '↑↓', rotulo: 'Selecionar item', ativo: cart.itens.length > 1 },
-            { tecla: 'F6', rotulo: 'Cancelar item', ativo: cart.itens.length > 0 },
-            { tecla: 'F7', rotulo: 'Espera', ativo: cart.itens.length > 0 },
-            { tecla: 'F8', rotulo: 'CPF na nota' },
-            { tecla: 'F9', rotulo: 'Sangria/suprimento' },
-            { tecla: 'F10', rotulo: 'Pagamento', ativo: cart.itens.length > 0 },
-            { tecla: 'F12', rotulo: 'Cancelar venda', ativo: cart.itens.length > 0 },
-            { tecla: 'Ctrl+L', rotulo: 'Trocar operador' },
-          ]}
-        />
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <BarraAtalhos
+              atalhos={[
+                { tecla: 'F2', rotulo: 'Buscar' },
+                { tecla: 'F3', rotulo: 'Quantidade' },
+                { tecla: 'F4', rotulo: 'Desconto' },
+                { tecla: '↑↓', rotulo: 'Selecionar item', ativo: cart.itens.length > 1 },
+                { tecla: 'F6', rotulo: 'Cancelar item', ativo: cart.itens.length > 0 },
+                { tecla: 'F7', rotulo: 'Espera', ativo: cart.itens.length > 0 },
+                { tecla: 'F8', rotulo: 'CPF na nota' },
+                { tecla: 'F9', rotulo: 'Sangria/suprimento' },
+                { tecla: 'F10', rotulo: 'Pagamento', ativo: cart.itens.length > 0 },
+                { tecla: 'F12', rotulo: 'Cancelar venda', ativo: cart.itens.length > 0 },
+                { tecla: 'Ctrl+L', rotulo: 'Trocar operador' },
+              ]}
+            />
+          </div>
+          <SeloSimulado estado={estadoFiscal} />
+        </div>
       </div>
 
       {busca && (

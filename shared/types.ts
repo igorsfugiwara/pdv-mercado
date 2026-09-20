@@ -248,6 +248,24 @@ export interface StatusSefaz {
   mensagem: string
 }
 
+/** Implementação fiscal em uso. `simulado` é o padrão enquanto a emissão real não for homologada. */
+export type ProviderFiscal = 'simulado' | 'acbr'
+
+/** Falha injetável no provider simulado, para exercitar contingência e rejeição. */
+export type ModoFalhaFiscal = 'nenhuma' | 'timeout' | 'rejeicao'
+
+/**
+ * Estado do módulo fiscal para a UI sinalizar ao operador (RF-30).
+ * `simulado: true` significa documentos SEM valor fiscal — a UI é obrigada a dizer isso.
+ */
+export interface EstadoFiscal {
+  provider: ProviderFiscal
+  simulado: boolean
+  /** Preenchido quando o `acbr` foi pedido, não subiu, e o módulo caiu para simulado. */
+  motivoFallback: string | null
+  modoFalha: ModoFalhaFiscal
+}
+
 // ---- Relatórios (RF-22..25) ----
 
 export interface RelatorioVendas {

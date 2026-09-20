@@ -7,7 +7,13 @@ import log from 'electron-log'
 import { IPC } from '@shared/ipc'
 import { toCsv } from '@shared/csv'
 import type { ProdutoInput, RelatorioVendasFiltro } from '@shared/ipc'
-import type { FinalizarVendaInput, StatusDocumentoFiscal, ResultadoFechamento } from '@shared/types'
+import type {
+  FinalizarVendaInput,
+  StatusDocumentoFiscal,
+  ResultadoFechamento,
+  ProviderFiscal,
+  ModoFalhaFiscal,
+} from '@shared/types'
 import { RASCUNHO_ID } from '@shared/types'
 import { getDb } from '../db/index'
 import { vendasEspera } from '../db/schema'
@@ -24,7 +30,12 @@ import { vendasRepo } from '../db/repositories/vendas.repo'
 import { finalizarVenda } from '../services/vendaService'
 import { importarProdutosCsv } from '../services/csvImport'
 import { backupAgora, exportarPara } from '../services/backup'
-import { getFiscalProvider, getContingenciaQueue } from '../fiscal'
+import {
+  getFiscalProvider,
+  getContingenciaQueue,
+  getEstadoFiscal,
+  definirModoFalhaSimulado,
+} from '../fiscal'
 import { imprimirTeste, imprimirCupomFechamento } from '../hardware/printer'
 import { lerPeso } from '../hardware/balanca'
 import { abrirGaveta } from '../hardware/gaveta'
@@ -278,6 +289,24 @@ export function registerIpc(dataDir: string) {
   )
   ipcMain.handle(IPC.fiscal.filaContingencia, () => fiscalRepo.listar('contingencia_pendente'))
   ipcMain.handle(IPC.fiscal.reprocessarFila, () => getContingenciaQueue().reprocessar())
+
+  ipcMain.handle(IPC.fiscal.estado, () => getEstadoFiscal())
+
+  // Troca de provider exige Admin e só vale no próximo boot: trocar o módulo
+  // fiscal com caixa aberto é pior do que esperar o reinício.
+  ipcMain.handle(IPC.fiscal.definirProvider, async (_e, provider: ProviderFiscal) => {
+    session.exigirPerfil('admin')
+    await configRepo.definir('fiscal.provider', provider)
+    await auditoriaRepo.registrar(session.get()?.id ?? null, 'fiscal_provider', { provider })
+    return getEstadoFiscal()
+  })
+
+  ipcMain.handle(IPC.fiscal.definirModoFalha, async (_e, modo: ModoFalhaFiscal) => {
+    session.exigirPerfil('admin')
+    await definirModoFalhaSimulado(modo)
+    await auditoriaRepo.registrar(session.get()?.id ?? null, 'fiscal_modo_falha', { modo })
+    return getEstadoFiscal()
+  })
 
   // ---- Relatórios (RF-22..25) ----
   ipcMain.handle(IPC.relatorios.vendas, (_e, filtro: RelatorioVendasFiltro) =>

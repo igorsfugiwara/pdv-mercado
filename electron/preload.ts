@@ -62,6 +62,9 @@ const api: PdvApi = {
     listarDocumentos: (status) => invoke(IPC.fiscal.listarDocumentos, status),
     filaContingencia: () => invoke(IPC.fiscal.filaContingencia),
     reprocessarFila: () => invoke(IPC.fiscal.reprocessarFila),
+    estado: () => invoke(IPC.fiscal.estado),
+    definirProvider: (provider) => invoke(IPC.fiscal.definirProvider, provider),
+    definirModoFalha: (modo) => invoke(IPC.fiscal.definirModoFalha, modo),
   },
   relatorios: {
     vendas: (filtro) => invoke(IPC.relatorios.vendas, filtro),

@@ -1,11 +1,44 @@
 import { useEffect, useState } from 'react'
+import type { EstadoFiscal, ProviderFiscal, ModoFalhaFiscal } from '@shared/types'
+import { FaixaSimulado } from '../components/AvisoFiscalSimulado'
+import { useAuthStore } from '../store/authStore'
 
 // Seção 5: Configurações → Periféricos (teste por dispositivo) + Fiscal + Backup.
 export default function ConfigScreen() {
   const [config, setConfig] = useState<Record<string, string>>({})
   const [log, setLog] = useState<string[]>([])
+  const [estadoFiscal, setEstadoFiscal] = useState<EstadoFiscal | null>(null)
+  const [provider, setProvider] = useState<ProviderFiscal>('simulado')
+  const ehAdmin = useAuthStore((s) => s.usuario?.perfil) === 'admin'
 
   useEffect(() => { void window.api.config.todas().then(setConfig) }, [])
+  useEffect(() => {
+    void window.api.fiscal.estado().then((e) => {
+      setEstadoFiscal(e)
+      // O select mostra o que está PEDIDO na configuração, não o que subiu:
+      // se o acbr caiu para simulado, o admin precisa ver que pediu acbr.
+      setProvider(e.motivoFallback ? 'acbr' : e.provider)
+    })
+  }, [])
+
+  async function trocarProvider(novo: ProviderFiscal) {
+    setProvider(novo)
+    try {
+      setEstadoFiscal(await window.api.fiscal.definirProvider(novo))
+      push(`Provider fiscal: ${novo}. Vale no próximo início do app.`)
+    } catch (e) {
+      push(`Não foi possível trocar: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  async function trocarModoFalha(modo: ModoFalhaFiscal) {
+    try {
+      setEstadoFiscal(await window.api.fiscal.definirModoFalha(modo))
+      push(`Falha simulada: ${modo}.`)
+    } catch (e) {
+      push(`Não foi possível trocar: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
 
   function push(msg: string) {
     setLog((l) => [`${new Date().toLocaleTimeString('pt-BR')} — ${msg}`, ...l].slice(0, 12))
@@ -60,6 +93,60 @@ export default function ConfigScreen() {
           <p className="mt-2 text-xs text-text-muted">
             Acima deste valor, o fechamento exige motivo e PIN de supervisor. Padrão: 1000 (R$ 10,00).
           </p>
+        </section>
+
+        <section className="card">
+          <h2 className="mb-3 text-sm font-semibold uppercase text-text-muted">
+            Módulo fiscal em uso
+          </h2>
+
+          <FaixaSimulado estado={estadoFiscal} />
+
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="fiscal-provider" className="mb-1 block text-xs text-text-muted">
+                Provider
+              </label>
+              <select
+                id="fiscal-provider"
+                className="input w-full"
+                value={provider}
+                disabled={!ehAdmin}
+                onChange={(e) => void trocarProvider(e.target.value as ProviderFiscal)}
+              >
+                <option value="simulado">Simulado — sem valor fiscal</option>
+                <option value="acbr">ACBrLib — emissão real</option>
+              </select>
+              <p className="mt-1 text-xs text-text-muted">
+                {ehAdmin
+                  ? 'A troca vale a partir do próximo início do app. Se o ACBr não subir, o caixa abre em simulado e avisa.'
+                  : 'Só o perfil Admin troca o módulo fiscal.'}
+              </p>
+            </div>
+
+            {estadoFiscal?.simulado && (
+              <div>
+                <label htmlFor="fiscal-falha" className="mb-1 block text-xs text-text-muted">
+                  Falha injetada (para teste)
+                </label>
+                <select
+                  id="fiscal-falha"
+                  className="input w-full"
+                  value={estadoFiscal.modoFalha}
+                  disabled={!ehAdmin}
+                  onChange={(e) => void trocarModoFalha(e.target.value as ModoFalhaFiscal)}
+                >
+                  <option value="nenhuma">Nenhuma — emite autorizada</option>
+                  <option value="timeout">Timeout — cai em contingência</option>
+                  <option value="rejeicao">Rejeição — documento rejeitado</option>
+                </select>
+                <p className="mt-1 text-xs text-text-muted">
+                  Vale na hora, sem reiniciar. A venda continua sendo gravada em qualquer um
+                  dos modos.
+                </p>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="card">

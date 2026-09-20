@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { DocumentoFiscal, StatusSefaz, StatusDocumentoFiscal } from '@shared/types'
+import { FaixaSimulado, useEstadoFiscal } from '../components/AvisoFiscalSimulado'
 
 const STATUS_LABEL: Record<StatusDocumentoFiscal, string> = {
   pendente: 'Pendente',
@@ -17,6 +18,7 @@ export default function FiscalScreen() {
   const [docs, setDocs] = useState<DocumentoFiscal[]>([])
   const [fila, setFila] = useState<DocumentoFiscal[]>([])
   const [filtro, setFiltro] = useState<StatusDocumentoFiscal | ''>('')
+  const estadoFiscal = useEstadoFiscal()
 
   async function recarregar() {
     setStatus(await window.api.fiscal.statusServico())
@@ -32,6 +34,8 @@ export default function FiscalScreen() {
   return (
     <div className="p-4">
       <h1 className="mb-4 font-display text-2xl text-primary">Monitor fiscal</h1>
+
+      <FaixaSimulado estado={estadoFiscal} />
 
       <div className="mb-4 grid grid-cols-3 gap-4">
         <div className="card">

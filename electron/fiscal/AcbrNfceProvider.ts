@@ -58,6 +58,18 @@ export class AcbrNfceProvider implements FiscalProvider {
 
   constructor(private readonly config: AcbrConfig) {}
 
+  /**
+   * A lib nativa subiu de verdade?
+   *
+   * `inicializar()` não lança quando a ACBrLib está ausente — fica em modo
+   * esqueleto de propósito, para nunca simular emissão falsa. Quem escolhe o
+   * provider precisa poder perguntar isto, senão o app anuncia "fiscal real"
+   * enquanto toda emissão vai estourar `NaoImplementadoError` no meio da venda.
+   */
+  get operacional(): boolean {
+    return this.carregada
+  }
+
   /** Carrega a ACBrLib via koffi e aplica a configuração fiscal. */
   async inicializar(): Promise<void> {
     if (!this.config.libPath) {
