@@ -38,7 +38,7 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 - **Relatórios** — vendas por período/forma/operador/produto/grupo e curva ABC, com as
   agregações testadas.
 - **Auth argon2id + PIN**, auditoria append-only.
-- **191 testes passando**, incluindo 27 contra Postgres real (PGlite).
+- **232 testes passando**, incluindo 27 contra Postgres real (PGlite).
 
 ### O que impede o operacional de ser impecável
 
@@ -46,10 +46,10 @@ O núcleo de dados e as regras de domínio estão bem construídos e cobertos po
 |---|---|---|---|
 | 1 | ~~**18 `prompt()`/`alert()`/`confirm()` no renderer.**~~ **Resolvido na fatia 02.** CPF, multiplicador, desconto, peso, sangria, PIN de supervisor — tudo em diálogo nativo. Trava a thread, ignora o tema, não dá para navegar por teclado de forma previsível e some do fluxo do operador. | 10 em `CaixaScreen.tsx`, 4 em `EstoqueScreen.tsx`, 3 em `ProdutosScreen.tsx`, 1 em `RelatoriosScreen.tsx` | **02** |
 | 2 | ~~**Não há tela de fechamento de caixa.**~~ **Resolvido na fatia 04.** `caixaStore.fechar()` existe e o repositório calcula a diferença, mas nenhuma tela chama. Um turno começa e não termina. | `src/store/caixaStore.ts:20`, sem chamador em `src/screens/` | **04** |
-| 3 | **Parser de etiqueta de balança órfão.** `parseEanBalanca()` está escrito e testado, mas `processarCaptura()` não o chama — bipar etiqueta de balança (EAN-13 prefixo 2) simplesmente não acha o produto. | `electron/hardware/balanca.ts:103` definido; zero chamadas fora do próprio módulo | **05** |
+| 3 | ~~**Parser de etiqueta de balança órfão.**~~ **Resolvido na fatia 05.** `parseEanBalanca()` está escrito e testado, mas `processarCaptura()` não o chama — bipar etiqueta de balança (EAN-13 prefixo 2) simplesmente não acha o produto. | `electron/hardware/balanca.ts:103` definido; zero chamadas fora do próprio módulo | **05** |
 | 4 | ~~**Desconto sem limite por perfil (RF-05).**~~ **Resolvido na fatia 03.** `pedirDescontoVenda()` aceita qualquer valor de qualquer operador, sem autorização. Não há desconto por item na UI, embora o tipo suporte. | `CaixaScreen.tsx:155` | **03** |
 | 5 | ~~**Cancelamento de item sem autorização (RF-06)**~~ **Resolvido na fatia 03.** e só do último item — não dá para cancelar um item no meio da compra. | `CaixaScreen.tsx:161` | **03** |
-| 6 | **Sem painel de abertura** — o alerta de estoque mínimo (RF-18) não tem onde aparecer. `estoque.alertasMinimo()` existe e ninguém consome no lugar certo. | não há `DashboardScreen` | **06** |
+| 6 | ~~**Sem painel de abertura**~~ **Resolvido na fatia 06.** — o alerta de estoque mínimo (RF-18) não tem onde aparecer. `estoque.alertasMinimo()` existe e ninguém consome no lugar certo. | não há `DashboardScreen` | **06** |
 | 7 | ~~**Fiscal do desktop só instancia `AcbrNfceProvider`.**~~ **Resolvido na fatia 01.** Sem a lib nativa e o certificado, o módulo fiscal não inicializa — ou seja, hoje não dá para rodar o app inteiro numa máquina de teste. | `electron/fiscal/index.ts:13` | **01** |
 | 8 | ~~**Busca sem debounce**~~ **Resolvido na fatia 02.** — dispara uma consulta por tecla digitada. | `src/components/BuscaProdutos.tsx:23` | **02** |
 | 9 | **Detecção de bipe por velocidade não existe (RF-01).** O PRD pede detecção por cadência de digitação *além* do sufixo Enter; a captura só reage ao Enter. Efeito prático hoje é benigno — digitar e bipar são equivalentes, o que ajuda o teste em VM — mas o requisito está aberto. | `src/screens/CaixaScreen.tsx`, `onKeyDown` do campo de captura | **02** |
@@ -73,8 +73,8 @@ primeiro porque sem ela não dá para exercitar nenhuma das outras ponta a ponta
 | **02** ✅ | [Diálogos do Caixa](02%20-%20Diálogos%20do%20Caixa.md) | Todo `prompt/alert/confirm` vira diálogo próprio, operável por teclado, sem travar a thread. | 01 |
 | **03** ✅ | [Autorização e Limites](03%20-%20Autorização%20e%20Limites.md) | Limite de desconto por perfil, autorização por PIN acima do limite, cancelamento de item arbitrário — tudo auditado. | 02 |
 | **04** ✅ | [Fechamento de Caixa](04%20-%20Fechamento%20de%20Caixa.md) | Conferência cega, apuração de diferença, comprovante do turno. Fecha o ciclo abertura→fechamento. | — |
-| **05** | [Etiqueta de Balança](05%20-%20Etiqueta%20de%20Balança.md) | Bipar etiqueta de balança resolve produto e peso/valor. Liga o parser órfão. | 02 |
-| **06** | [Painel e Estoque Mínimo](06%20-%20Painel%20e%20Estoque%20Mínimo.md) | Tela inicial com o estado do turno e os alertas que exigem ação. | 04 |
+| **05** ✅ | [Etiqueta de Balança](05%20-%20Etiqueta%20de%20Balança.md) | Bipar etiqueta de balança resolve produto e peso/valor. Liga o parser órfão. | 02 |
+| **06** ✅ | [Painel e Estoque Mínimo](06%20-%20Painel%20e%20Estoque%20Mínimo.md) | Tela inicial com o estado do turno e os alertas que exigem ação. | 04 |
 | **07** | [Aceite Ponta a Ponta](07%20-%20Aceite%20Ponta%20a%20Ponta.md) | O critério 9.4 do PRD original virado em teste E2E que roda no CI. | 03, 04, 05 |
 
 ### Por que esta ordem
@@ -86,6 +86,14 @@ construir duas vezes: uma no diálogo nativo, outra quando ele for substituído.
 
 A **07** vem por último de propósito: o teste de aceite só é honesto quando existe o
 fluxo inteiro para exercitar.
+
+> **Nota de execução (fatias 05 e 06, entregues):** duas correções que valem registro.
+> Na 05, os EANs de balança usados nos testes tinham **dígito verificador inválido** e
+> passavam porque nada os conferia; e o PRD (código 6 dígitos) divergia do código testado
+> (5 dígitos), então o tamanho virou configuração — Toledo e Filizola imprimem layouts
+> diferentes. Na 06, a contagem de dias do período misturava data-só (UTC) com hora local
+> e rendia um dia a mais a oeste de Greenwich, fazendo o giro diário sair menor: virou
+> `shared/periodo.ts`, usada pelos dois alvos.
 
 > **Nota de execução (fatia 03, entregue):** a regra de autorização ficou em
 > `shared/autorizacao.ts` e é aplicada nos **três** pontos: tela (decide se pede PIN),
